@@ -1,6 +1,6 @@
 # Derby
 
-**Version 0.2.1** (shown in the app under More → About)
+**Version 0.3.0** (shown in the app under More → About)
 
 Bloodline and pedigree records for gamefowl breeders and cockers in the Philippines.
 Derby is a mobile web app that installs on a phone like a normal app and keeps working without signal at the farm.
