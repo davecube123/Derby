@@ -1,6 +1,8 @@
 import * as db from './db.js';
 import * as G from './genetics.js';
-import { SEX, STATUS, PRESET_LINES, FEATHER_COLORS, LEG_COLORS, COMBS } from './constants.js';
+import { SEX, STATUS, PRESET_LINES, FEATHER_COLORS, LEG_COLORS, COMBS, LOG_SUGGESTIONS } from './constants.js';
+import { LOG_TYPES, todayStr, isDateStr, daysBetween, addDays, parseWeight, formatKg, keepProgress, weightSeries, latestWeight, dueItems } from './conditioning.js';
+import { weightChart, bindCharts } from './chart.js';
 import { APP_VERSION } from './version.js';
 import { t, getLang, setLang, locale, LANGS } from './i18n.js';
 import * as install from './install.js';
@@ -8,6 +10,8 @@ import * as install from './install.js';
 const state = {
   birds: new Map(),
   customLines: [],
+  logs: new Map(),
+  keeps: new Map(),
   filter: { q: '', sex: 'all', status: 'all' },
 };
 
@@ -155,7 +159,7 @@ function initLanguageSwitch() {
       applyShellLanguage();
       // Re-rendering a form would throw away what the user typed.
       const { parts } = parseHash();
-      const onForm = parts[0] === 'bird' && (parts[1] === 'new' || parts[2] === 'edit');
+      const onForm = (['bird', 'keep'].includes(parts[0]) && (parts[1] === 'new' || parts[2] === 'edit')) || parts[0] === 'log';
       if (onForm) toast(t('lang.deferred'));
       else route({ keepScroll: true });
     };
@@ -175,14 +179,29 @@ function route(opts = {}) {
   const { parts, query } = parseHash();
   if (!opts.keepScroll) window.scrollTo(0, 0);
   const section = parts[0] || 'birds';
-  setActiveNav(section === 'bird' ? 'birds' : section === 'backup' ? 'more' : section);
+  const navOf = { bird: 'birds', backup: 'more', log: 'keep' };
+  setActiveNav(navOf[section] || section);
   if (!parts.length) return renderList();
   if (parts[0] === 'bird') {
     if (parts[1] === 'new') return renderForm(null, query);
     const bird = state.birds.get(parts[1]);
     if (!bird) return renderNotFound();
     if (parts[2] === 'edit') return renderForm(bird, query);
+    if (parts[2] === 'logs') return renderBirdLogs(bird);
     return renderDetail(bird);
+  }
+  if (parts[0] === 'keep') {
+    if (!parts[1]) return renderKeepHome();
+    if (parts[1] === 'new') return renderKeepForm(null, query);
+    const keep = state.keeps.get(parts[1]);
+    if (!keep) return renderNotFound(t('keep.notFound'));
+    return parts[2] === 'edit' ? renderKeepForm(keep, query) : renderKeep(keep);
+  }
+  if (parts[0] === 'log') {
+    if (parts[1] === 'new') return renderLogForm(null, query);
+    const log = state.logs.get(parts[1]);
+    if (!log) return renderNotFound(t('log.notFound'));
+    return renderLogForm(log, query);
   }
   if (parts[0] === 'mating') return renderMating(query, opts.keepScroll);
   if (parts[0] === 'lines') return renderLines();
@@ -190,9 +209,9 @@ function route(opts = {}) {
   return renderNotFound();
 }
 
-function renderNotFound() {
+function renderNotFound(text = t('notFound.text')) {
   setHeader(t('notFound.title'), '#/');
-  view.innerHTML = `<div class="card empty"><p>${t('notFound.text')}</p><a class="btn" href="#/">${t('notFound.back')}</a></div>`;
+  view.innerHTML = `<div class="card empty"><p>${esc(text)}</p><a class="btn" href="#/">${t('notFound.back')}</a></div>`;
 }
 
 // ---------- bird list ----------
@@ -335,6 +354,8 @@ function renderDetail(b) {
       ${pedigreeGrid(b.id, ped)}
     </section>
 
+    ${conditioningSection(b)}
+
     ${facts.length ? `<section class="card"><h3>${t('sec.details')}</h3><dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></section>` : ''}
 
     ${b.notes ? `<section class="card"><h3>${t('sec.notes')}</h3><p class="notes">${esc(b.notes)}</p></section>` : ''}
@@ -394,7 +415,10 @@ function pedigreeGrid(id, ped) {
 }
 
 async function deleteBirdFlow(b, kids) {
-  const extra = kids.length ? `\n\n${t('del.kids', { n: kids.length })}` : '';
+  const birdLogs = logsOf(b.id);
+  const birdKeeps = [...state.keeps.values()].filter((k) => k.birdId === b.id);
+  let extra = kids.length ? `\n\n${t('del.kids', { n: kids.length })}` : '';
+  if (birdLogs.length || birdKeeps.length) extra += `\n\n${t('del.logs', { n: birdLogs.length })}`;
   if (!confirm(`${t('del.confirm', { name: displayName(b) })}${extra}`)) return;
   const now = Date.now();
   const changed = [];
@@ -411,8 +435,12 @@ async function deleteBirdFlow(b, kids) {
   }
   await db.putBirds(changed);
   await db.deleteBird(b.id);
+  await db.deleteLogs(birdLogs.map((l) => l.id));
+  await db.deleteKeeps(birdKeeps.map((k) => k.id));
   for (const c of changed) state.birds.set(c.id, c);
   state.birds.delete(b.id);
+  for (const l of birdLogs) state.logs.delete(l.id);
+  for (const k of birdKeeps) state.keeps.delete(k.id);
   toast(t('del.done'));
   location.hash = '#/';
 }
@@ -825,6 +853,467 @@ function renderLines() {
   }
 }
 
+// ---------- conditioning & keep ----------
+
+const logsArr = () => [...state.logs.values()];
+const byLogDesc = (a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0);
+const logsOf = (birdId) => logsArr().filter((l) => l.birdId === birdId).sort(byLogDesc);
+const activeKeepOf = (birdId) => [...state.keeps.values()].find((k) => k.birdId === birdId && k.status === 'active');
+
+function shortDate(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+}
+
+function logSummary(l) {
+  const d = l.data || {};
+  const parts = {
+    weight: [formatKg(d.weight)],
+    feed: [d.feed, d.amount],
+    exercise: [d.activity, d.minutes && t('log.min', { n: d.minutes })],
+    sparring: [d.partner && t('log.vs', { name: d.partner }), d.minutes && t('log.min', { n: d.minutes }), d.rating && `${d.rating}/5`],
+    vitamins: [d.product, d.dose],
+    vaccine: [d.product, d.nextDue && t('log.next', { date: formatDate(d.nextDue) })],
+    deworm: [d.product, d.nextDue && t('log.next', { date: formatDate(d.nextDue) })],
+    health: [d.issue, d.treatment],
+  }[l.type] || [];
+  return parts.filter(Boolean).join(' · ');
+}
+
+function logRow(l, showBird = false) {
+  const bird = state.birds.get(l.birdId);
+  return `<li><a class="log-row" href="#/log/${esc(l.id)}/edit">
+    <span class="log-date">${esc(shortDate(l.date))}</span>
+    <span class="log-main">
+      <span class="log-head"><span class="log-type">${esc(t(`type.${l.type}`))}</span>${showBird && bird ? `<strong>${esc(displayName(bird))}</strong>` : ''}</span>
+      <span class="log-sum">${esc(logSummary(l))}</span>
+      ${l.notes ? `<span class="log-notes muted">${esc(l.notes)}</span>` : ''}
+    </span>
+  </a></li>`;
+}
+
+/** [headline, detail] for a keep, e.g. ["Day 11 of 22", "11 days to the derby"]. */
+function keepStatusParts(k, p = keepProgress(k)) {
+  if (k.status === 'done') return [t('keep.done'), ''];
+  if (p.phase === 'notStarted') return [t('keep.notStarted', { date: formatDate(k.startDate) }), ''];
+  if (p.phase === 'fightDay') return [t('keep.fightDay'), ''];
+  if (p.phase === 'past') return [t('keep.past'), ''];
+  return p.total ? [t('keep.day', { day: p.day, total: p.total }), t('keep.left', { n: p.daysLeft })] : [t('keep.dayOnly', { day: p.day }), ''];
+}
+
+const keepStatusText = (k, p) => keepStatusParts(k, p).filter(Boolean).join(' · ');
+
+function weightDiffText(current, target) {
+  if (!(current > 0) || !(target > 0)) return '';
+  const d = current - target;
+  if (Math.abs(d) < 0.005) return t('keep.onTarget');
+  return t(d > 0 ? 'keep.diffOver' : 'keep.diffUnder', { kg: formatKg(Math.abs(d)) });
+}
+
+function chartBlock(birdId, from, to, target, name) {
+  const pts = weightSeries(logsArr(), birdId, from, to);
+  if (pts.length < 2) return `<p class="muted small">${t('keep.chartNeed')}</p>`;
+  return weightChart(pts, {
+    target, fmtDate: shortDate, label: t('keep.chartLabel', { name }), targetLabel: t('keep.targetLine', { kg: formatKg(target) }),
+  });
+}
+
+function keepCard(k) {
+  const b = state.birds.get(k.birdId);
+  const p = keepProgress(k);
+  const w = latestWeight(logsArr(), k.birdId);
+  const meta = [w && formatKg(w.kg), k.targetWeight && `${t('keep.target')} ${formatKg(k.targetWeight)}`, k.fightDate && formatDate(k.fightDate)].filter(Boolean).join(' · ');
+  return `<li><a class="keep-card" href="#/keep/${esc(k.id)}">
+    <div class="kc-top"><strong>${esc(displayName(b))}</strong><span class="muted small">${esc(k.name)}</span></div>
+    <div class="kc-status">${esc(keepStatusText(k, p))}</div>
+    ${k.status === 'active' && p.fraction !== null ? `<div class="progress" role="presentation"><span style="width:${(p.fraction * 100).toFixed(1)}%"></span></div>` : ''}
+    ${meta ? `<div class="muted small">${esc(meta)}</div>` : ''}
+  </a></li>`;
+}
+
+function dueLabel(days) {
+  if (days < 0) return t('due.overdue', { n: -days });
+  if (days === 0) return t('due.today');
+  return t('due.in', { n: days });
+}
+
+function renderKeepHome() {
+  setHeader(t('keep.title'), null);
+  const keeps = [...state.keeps.values()].filter((k) => state.birds.has(k.birdId));
+  const active = keeps.filter((k) => k.status === 'active').sort((a, b) => (a.fightDate || '9999').localeCompare(b.fightDate || '9999'));
+  const done = keeps.filter((k) => k.status === 'done').sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 5);
+  const due = dueItems(logsArr(), state.birds);
+  const recent = logsArr().filter((l) => state.birds.has(l.birdId)).sort(byLogDesc).slice(0, 10);
+
+  view.innerHTML = `
+    <section class="card">
+      <div class="row-between"><h3>${t('keep.active')}</h3><a class="btn small" href="#/keep/new">${t('keep.start')}</a></div>
+      ${active.length ? `<ul class="keep-list">${active.map(keepCard).join('')}</ul>` : `<p class="muted">${t('keep.noneActive')}</p>`}
+    </section>
+    <section class="card">
+      <h3>${t('keep.due')}</h3>
+      ${due.length
+        ? `<ul class="due-list">${due.map(({ log, bird, days }) => `<li><a class="due-row${days < 0 ? ' overdue' : ''}" href="#/log/new?bird=${encodeURIComponent(bird.id)}&type=${log.type}&product=${encodeURIComponent(log.data.product || '')}">
+            <span class="due-when">${esc(dueLabel(days))}</span>
+            <span><strong>${esc(displayName(bird))}</strong> · ${esc(t(`type.${log.type}`))}: ${esc(log.data.product || '')}</span></a></li>`).join('')}</ul>`
+        : `<p class="muted small">${t('keep.noneDue')}</p>`}
+    </section>
+    <section class="card">
+      <h3>${t('keep.recent')}</h3>
+      ${recent.length ? `<ul class="log-list">${recent.map((l) => logRow(l, true)).join('')}</ul>` : `<p class="muted small">${t('keep.noLogs')}</p>`}
+    </section>
+    ${done.length ? `<section class="card"><h3>${t('keep.pastTitle')}</h3><ul class="keep-list">${done.map(keepCard).join('')}</ul></section>` : ''}
+    <a class="fab" href="#/log/new" aria-label="${esc(t('keep.addLog'))}">+</a>`;
+}
+
+function renderKeep(k) {
+  const b = state.birds.get(k.birdId);
+  if (!b) return renderNotFound();
+  setHeader(k.name || t('keep.defaultName'), '#/keep');
+  const p = keepProgress(k);
+  const w = latestWeight(logsArr(), b.id);
+  const logs = logsOf(b.id).filter((l) => l.date >= k.startDate && (!k.fightDate || l.date <= k.fightDate));
+  const diff = weightDiffText(w?.kg, k.targetWeight);
+
+  view.innerHTML = `
+    <section class="hero">
+      ${thumb(b, 'hero-photo')}
+      <div>
+        <h2><a class="plain-link" href="#/bird/${esc(b.id)}">${esc(displayName(b))}</a></h2>
+        <div class="badges">${sexBadge(b)}</div>
+        <p class="muted">${esc(formatDate(k.startDate))}${k.fightDate ? ` → ${esc(formatDate(k.fightDate))}` : ''}</p>
+      </div>
+    </section>
+    <section class="card">
+      <p class="big">${esc(keepStatusParts(k, p)[0])}</p>
+      ${keepStatusParts(k, p)[1] ? `<p class="keep-sub">${esc(keepStatusParts(k, p)[1])}</p>` : ''}
+      ${k.status === 'active' && p.fraction !== null ? `<div class="progress"><span style="width:${(p.fraction * 100).toFixed(1)}%"></span></div>` : ''}
+      ${k.notes ? `<p class="notes muted small">${esc(k.notes)}</p>` : ''}
+    </section>
+    <section class="card">
+      <h3>${t('keep.weightChart')}</h3>
+      <div class="stats">
+        <div><span>${t('keep.weightNow')}</span><strong>${w ? esc(formatKg(w.kg)) : '—'}</strong></div>
+        <div><span>${t('keep.target')}</span><strong>${k.targetWeight ? esc(formatKg(k.targetWeight)) : '—'}</strong></div>
+      </div>
+      ${diff ? `<p class="small diff">${esc(diff)}</p>` : ''}
+      ${chartBlock(b.id, k.startDate, k.fightDate || null, k.targetWeight, displayName(b))}
+    </section>
+    <section class="card">
+      <div class="row-between"><h3>${t('keep.logsInKeep')}</h3>
+        <a class="btn small" href="#/log/new?bird=${encodeURIComponent(b.id)}&type=weight&keep=${encodeURIComponent(k.id)}">${t('keep.logWeight')}</a></div>
+      ${logs.length ? `<ul class="log-list">${logs.map((l) => logRow(l)).join('')}</ul>` : `<p class="muted small">${t('keep.noLogsInKeep')}</p>`}
+    </section>
+    <div class="actions">
+      <a class="btn primary" href="#/log/new?bird=${encodeURIComponent(b.id)}&keep=${encodeURIComponent(k.id)}">${t('keep.addLog')}</a>
+      <a class="btn" href="#/keep/${esc(k.id)}/edit">${t('keep.edit')}</a>
+      <button class="btn" id="keep-toggle">${k.status === 'active' ? t('keep.finish') : t('keep.reopen')}</button>
+      <button class="btn danger" id="keep-delete">${t('keep.delete')}</button>
+    </div>`;
+  bindCharts(view);
+
+  $('#keep-toggle').onclick = async () => {
+    const next = { ...k, status: k.status === 'active' ? 'done' : 'active', updatedAt: Date.now() };
+    await db.putKeep(next);
+    state.keeps.set(next.id, next);
+    toast(next.status === 'done' ? t('keep.finished') : t('keep.reopened'));
+    renderKeep(next);
+  };
+  $('#keep-delete').onclick = async () => {
+    if (!confirm(t('keep.deleteConfirm'))) return;
+    await db.deleteKeeps([k.id]);
+    state.keeps.delete(k.id);
+    toast(t('keep.deleted'));
+    location.hash = '#/keep';
+  };
+}
+
+function birdOptions(selectedId, filter = () => true) {
+  return [...state.birds.values()]
+    .filter((x) => filter(x) || x.id === selectedId)
+    .sort((x, y) => (SEX[y.sex]?.male ? 1 : 0) - (SEX[x.sex]?.male ? 1 : 0) || displayName(x).localeCompare(displayName(y)))
+    .map((x) => `<option value="${esc(x.id)}"${x.id === selectedId ? ' selected' : ''}>${esc(displayName(x))}${SEX[x.sex] ? ` · ${esc(sexLabel(x.sex))}` : ''}</option>`)
+    .join('');
+}
+
+const liveBird = (x) => x.status !== 'sold' && x.status !== 'deceased';
+
+function renderKeepForm(existing, query) {
+  const isNew = !existing;
+  const k = existing ? { ...existing } : {
+    id: uid(), birdId: query.get('bird') || '', name: t('keep.defaultName'), startDate: todayStr(),
+    fightDate: '', targetWeight: null, status: 'active', notes: '',
+  };
+  setHeader(isNew ? t('keep.new') : t('keep.edit'), isNew ? '#/keep' : `#/keep/${k.id}`);
+  view.innerHTML = `
+    <form id="keep-form" class="form" novalidate>
+      <section class="card">
+        <label>${t('kf.bird')}
+          <select name="birdId"><option value="">${t('kf.choose')}</option>${birdOptions(k.birdId, liveBird)}</select>
+        </label>
+        <label>${t('kf.name')} <input name="name" value="${esc(k.name)}" placeholder="${esc(t('kf.namePh'))}" autocomplete="off" autocapitalize="sentences" enterkeyhint="next"></label>
+        <div class="two">
+          <label>${t('kf.start')} <input type="date" name="startDate" value="${esc(k.startDate)}"></label>
+          <label>${t('kf.fight')} <input type="date" name="fightDate" value="${esc(k.fightDate)}"></label>
+        </div>
+        <label>${t('kf.target')} <input name="targetWeight" inputmode="decimal" value="${k.targetWeight ? k.targetWeight.toFixed(2) : ''}" placeholder="${esc(t('kf.targetPh'))}" autocomplete="off" enterkeyhint="next"></label>
+        <label>${t('f.notes')} <textarea name="notes" rows="3" autocapitalize="sentences">${esc(k.notes)}</textarea></label>
+      </section>
+      <p id="form-error" class="error" role="alert"></p>
+      <div class="actions sticky">
+        <a class="btn" href="${isNew ? '#/keep' : `#/keep/${esc(k.id)}`}">${t('btn.cancel')}</a>
+        <button class="btn primary" type="submit">${t('btn.save')}</button>
+      </div>
+    </form>`;
+  const form = $('#keep-form');
+  enableKeyboardFlow(form);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = $('#form-error');
+    const fail = (msg) => { err.textContent = msg; err.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    const birdId = form.birdId.value;
+    const startDate = form.startDate.value;
+    const fightDate = form.fightDate.value;
+    const rawTarget = form.targetWeight.value.trim();
+    const targetWeight = rawTarget ? parseWeight(rawTarget) : null;
+    if (!birdId) return fail(t('kf.errBird'));
+    if (!isDateStr(startDate)) return fail(t('kf.errStart'));
+    if (fightDate && daysBetween(startDate, fightDate) < 0) return fail(t('kf.errFight'));
+    if (rawTarget && Number.isNaN(targetWeight)) return fail(t('kf.errTarget'));
+    const now = Date.now();
+    const record = {
+      ...k, birdId, startDate, fightDate: isDateStr(fightDate) ? fightDate : '', targetWeight,
+      name: form.name.value.trim() || t('keep.defaultName'), notes: form.notes.value.trim(),
+      createdAt: existing?.createdAt || now, updatedAt: now,
+    };
+    await db.putKeep(record);
+    state.keeps.set(record.id, record);
+    toast(t('keep.saved'));
+    location.hash = `#/keep/${record.id}`;
+  };
+}
+
+function renderLogForm(existing, query) {
+  const isNew = !existing;
+  const l = existing ? { ...existing, data: { ...existing.data } } : {
+    id: uid(), birdId: query.get('bird') || '', type: LOG_TYPES[query.get('type')] ? query.get('type') : '',
+    date: todayStr(), data: {}, notes: '',
+  };
+  if (isNew && query.get('product')) l.data.product = query.get('product');
+  const back = query.get('keep') && state.keeps.has(query.get('keep')) ? `#/keep/${query.get('keep')}`
+    : l.birdId && state.birds.has(l.birdId) ? `#/bird/${l.birdId}/logs` : '#/keep';
+  setHeader(isNew ? t('log.new') : t('log.edit'), back);
+
+  const datalists = Object.entries(LOG_SUGGESTIONS)
+    .map(([id, items]) => `<datalist id="dl-${id}">${items.map((i) => `<option value="${esc(i)}">`).join('')}</datalist>`).join('');
+
+  view.innerHTML = `
+    <form id="log-form" class="form" novalidate>
+      <section class="card">
+        <label>${t('kf.bird')}
+          <select name="birdId"><option value="">${t('kf.choose')}</option>${birdOptions(l.birdId, liveBird)}</select>
+        </label>
+        <fieldset class="type-grid">
+          <legend>${t('log.type')}</legend>
+          ${Object.keys(LOG_TYPES).map((k) => `<label><input type="radio" name="type" value="${k}"${l.type === k ? ' checked' : ''}><span>${esc(t(`type.${k}`))}</span></label>`).join('')}
+        </fieldset>
+        <label>${t('lf.date')} <input type="date" name="date" value="${esc(l.date)}"></label>
+      </section>
+      <section class="card" id="type-fields"></section>
+      <section class="card">
+        <label>${t('lf.notes')} <textarea name="notes" rows="3" autocapitalize="sentences">${esc(l.notes)}</textarea></label>
+      </section>
+      ${datalists}
+      <p id="form-error" class="error" role="alert"></p>
+      <div class="actions sticky">
+        <a class="btn" href="${esc(back)}">${t('btn.cancel')}</a>
+        <button class="btn primary" type="submit">${t('btn.save')}</button>
+      </div>
+      ${existing ? `<div class="actions"><button type="button" class="btn danger" id="log-delete">${t('btn.delete')}</button></div>` : ''}
+    </form>`;
+
+  const form = $('#log-form');
+  const box = $('#type-fields');
+  const fieldName = (f) => `f-${f.k}`;
+
+  // Keep what was typed when the user switches type.
+  const readInto = (data) => {
+    for (const el of $$('[data-field]', box)) {
+      if (el.type === 'radio') { if (el.checked) data[el.dataset.field] = el.value; } else data[el.dataset.field] = el.value;
+    }
+  };
+
+  const drawFields = (focusFirst) => {
+    const type = form.type.value;
+    box.hidden = !type;
+    if (!type) return;
+    const fields = LOG_TYPES[type];
+    box.innerHTML = fields.map((f, i) => {
+      const v = l.data[f.k] ?? '';
+      const hint = i === fields.length - 1 ? 'done' : 'next';
+      const label = t(`lf.${f.k}`);
+      if (f.kind === 'rating') {
+        return `<fieldset class="seg"><legend>${label}</legend>${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="${fieldName(f)}" data-field="${f.k}" value="${n}"${String(v) === String(n) ? ' checked' : ''}><span>${n}</span></label>`).join('')}</fieldset>`;
+      }
+      if (f.kind === 'date') return `<label>${label} <input type="date" name="${fieldName(f)}" data-field="${f.k}" value="${esc(v)}"></label>`;
+      if (f.kind === 'weight') {
+        const shown = typeof v === 'number' ? formatKg(v).replace(' kg', '') : v;
+        return `<label>${label} <input name="${fieldName(f)}" data-field="${f.k}" inputmode="decimal" enterkeyhint="${hint}" placeholder="${esc(t('lf.weightPh'))}" value="${esc(shown)}" autocomplete="off"></label>`;
+      }
+      if (f.kind === 'number') return `<label>${label} <input name="${fieldName(f)}" data-field="${f.k}" inputmode="numeric" pattern="[0-9]*" enterkeyhint="${hint}" value="${esc(v)}" autocomplete="off"></label>`;
+      const ph = f.k === 'amount' ? ` placeholder="${esc(t('lf.amountPh'))}"` : '';
+      return `<label>${label} <input name="${fieldName(f)}" data-field="${f.k}"${f.list ? ` list="dl-${f.list}"` : ''}${ph} autocapitalize="sentences" enterkeyhint="${hint}" value="${esc(v)}" autocomplete="off"></label>`;
+    }).join('');
+    if (focusFirst) box.querySelector('input:not([type=date]):not([type=radio])')?.focus();
+  };
+
+  for (const r of form.type) r.onchange = () => { readInto(l.data); drawFields(true); };
+  drawFields(false);
+  enableKeyboardFlow(form);
+
+  $('#log-delete')?.addEventListener('click', async () => {
+    if (!confirm(t('log.deleteConfirm'))) return;
+    await db.deleteLogs([l.id]);
+    state.logs.delete(l.id);
+    toast(t('log.deleted'));
+    location.hash = back;
+  });
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = $('#form-error');
+    const fail = (msg) => { err.textContent = msg; err.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    const birdId = form.birdId.value;
+    const type = form.type.value;
+    const date = form.date.value;
+    if (!birdId) return fail(t('log.errBird'));
+    if (!type) return fail(t('log.errType'));
+    if (!isDateStr(date)) return fail(t('log.errDate'));
+    const raw = {};
+    readInto(raw);
+    const data = {};
+    for (const f of LOG_TYPES[type]) {
+      const v = String(raw[f.k] ?? '').trim();
+      if (f.kind === 'weight') {
+        const kg = parseWeight(v);
+        if (Number.isNaN(kg)) return fail(t('log.errWeight'));
+        data[f.k] = kg;
+      } else if (f.kind === 'number' || f.kind === 'rating') {
+        if (v) data[f.k] = Math.max(0, Math.round(Number(v))) || null;
+      } else if (v) {
+        data[f.k] = v;
+      }
+      if (f.required && !data[f.k]) return fail(t('log.errRequired', { field: t(`lf.${f.k}`) }));
+    }
+    const now = Date.now();
+    const record = {
+      id: l.id, birdId, type, date, data, notes: form.notes.value.trim(),
+      createdAt: existing?.createdAt || now, updatedAt: now,
+    };
+    await db.putLog(record);
+    state.logs.set(record.id, record);
+    requestPersistence();
+    toast(t('log.saved'));
+    // After a new log, go where the user came from; the bird's log page otherwise.
+    location.hash = query.get('keep') && state.keeps.has(query.get('keep')) ? `#/keep/${query.get('keep')}` : `#/bird/${birdId}/logs`;
+  };
+}
+
+function renderBirdLogs(b) {
+  setHeader(t('logs.title', { name: displayName(b) }), `#/bird/${b.id}`);
+  const all = logsOf(b.id);
+  const w = latestWeight(logsArr(), b.id);
+  const k = activeKeepOf(b.id);
+  let filter = 'all';
+
+  view.innerHTML = `
+    <section class="card">
+      <div class="stats">
+        <div><span>${t('cond.latestWeight')}</span><strong>${w ? esc(formatKg(w.kg)) : '—'}</strong>${w ? `<span class="muted small">${esc(shortDate(w.date))}</span>` : ''}</div>
+        <div><span>${t('nav.keep')}</span>${k ? `<a class="plain-link" href="#/keep/${esc(k.id)}"><strong>${esc(k.name)}</strong></a><span class="muted small">${esc(keepStatusText(k))}</span>` : `<a class="btn small" href="#/keep/new?bird=${encodeURIComponent(b.id)}">${t('cond.startKeep')}</a>`}</div>
+      </div>
+    </section>
+    <section class="card">
+      <h3>${t('keep.weightChart')}</h3>
+      ${chartBlock(b.id, null, null, k?.targetWeight, displayName(b))}
+    </section>
+    <section class="card">
+      <div class="row-between"><h3>${t('cond.allLogs')}</h3>
+        <select id="type-filter" class="compact-select" aria-label="${esc(t('logs.filterAria'))}">
+          <option value="all">${t('logs.filterAll')}</option>
+          ${Object.keys(LOG_TYPES).map((x) => `<option value="${x}">${esc(t(`type.${x}`))}</option>`).join('')}
+        </select>
+      </div>
+      <ul class="log-list" id="log-list"></ul>
+    </section>
+    <a class="fab" href="#/log/new?bird=${encodeURIComponent(b.id)}" aria-label="${esc(t('keep.addLog'))}">+</a>`;
+  bindCharts(view);
+  const draw = () => {
+    const list = filter === 'all' ? all : all.filter((l) => l.type === filter);
+    $('#log-list').innerHTML = list.length ? list.map((l) => logRow(l)).join('') : `<li class="empty-row muted">${filter === 'all' ? t('cond.none') : t('logs.empty')}</li>`;
+  };
+  $('#type-filter').onchange = (e) => { filter = e.target.value; draw(); };
+  draw();
+}
+
+function conditioningSection(b) {
+  const w = latestWeight(logsArr(), b.id);
+  const k = activeKeepOf(b.id);
+  const recent = logsOf(b.id).slice(0, 3);
+  return `<section class="card">
+    <div class="row-between"><h3>${t('sec.conditioning')}</h3>
+      <a class="btn small" href="#/log/new?bird=${encodeURIComponent(b.id)}">${t('cond.addLog')}</a></div>
+    ${w ? `<p class="cond-line"><span class="muted">${t('cond.latestWeight')}</span> <strong>${esc(formatKg(w.kg))}</strong> <span class="muted small">${esc(shortDate(w.date))}</span></p>` : ''}
+    ${k ? `<p class="cond-line"><a class="plain-link" href="#/keep/${esc(k.id)}"><strong>${esc(t('cond.inKeep', { name: k.name }))}</strong></a> <span class="muted small">${esc(keepStatusText(k))}</span></p>` : ''}
+    ${recent.length ? `<ul class="log-list">${recent.map((l) => logRow(l)).join('')}</ul>` : `<p class="muted">${t('cond.none')}</p>`}
+    <div class="btn-row">
+      <a class="btn small" href="#/bird/${esc(b.id)}/logs">${t('cond.allLogs')}</a>
+      ${!k ? `<a class="btn small" href="#/keep/new?bird=${encodeURIComponent(b.id)}">${t('cond.startKeep')}</a>` : ''}
+    </div>
+  </section>`;
+}
+
+const LOG_FIELD_KINDS = Object.fromEntries(Object.entries(LOG_TYPES).map(([k, fields]) => [k, Object.fromEntries(fields.map((f) => [f.k, f.kind]))]));
+
+function sanitizeLog(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || typeof raw.birdId !== 'string') return null;
+  if (!LOG_TYPES[raw.type] || !isDateStr(raw.date)) return null;
+  const data = {};
+  for (const [k, kind] of Object.entries(LOG_FIELD_KINDS[raw.type])) {
+    const v = raw.data?.[k];
+    if (kind === 'weight' && typeof v === 'number' && v > 0 && v <= 20) data[k] = v;
+    else if ((kind === 'number' || kind === 'rating') && Number.isFinite(v) && v >= 0) data[k] = Math.round(kind === 'rating' ? Math.min(5, v) : v);
+    else if (kind === 'date' && isDateStr(v)) data[k] = v;
+    else if (kind === 'text' && typeof v === 'string' && v) data[k] = v.slice(0, 120);
+  }
+  return {
+    id: str(raw.id, 80), birdId: str(raw.birdId, 80), type: raw.type, date: raw.date, data, notes: str(raw.notes, 2000),
+    createdAt: Number(raw.createdAt) || Date.now(), updatedAt: Number(raw.updatedAt) || Date.now(),
+  };
+}
+
+function sanitizeKeep(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || typeof raw.birdId !== 'string' || !isDateStr(raw.startDate)) return null;
+  return {
+    id: str(raw.id, 80), birdId: str(raw.birdId, 80), name: str(raw.name, 80) || 'Derby keep', startDate: raw.startDate,
+    fightDate: isDateStr(raw.fightDate) ? raw.fightDate : '',
+    targetWeight: typeof raw.targetWeight === 'number' && raw.targetWeight > 0 && raw.targetWeight <= 20 ? raw.targetWeight : null,
+    status: raw.status === 'done' ? 'done' : 'active', notes: str(raw.notes, 2000),
+    createdAt: Number(raw.createdAt) || Date.now(), updatedAt: Number(raw.updatedAt) || Date.now(),
+  };
+}
+
+/** Merge records by id, keeping whichever copy is newer. */
+function mergeNewer(map, records) {
+  const out = [];
+  for (const r of records) {
+    if (!r) continue;
+    const cur = map.get(r.id);
+    if (!cur || r.updatedAt > (cur.updatedAt || 0)) out.push(r);
+  }
+  return out;
+}
+
 // ---------- more: install, backup & sharing, about ----------
 
 function renderMore() {
@@ -870,7 +1359,7 @@ function renderMore() {
   $('#install')?.addEventListener('click', install.startInstall);
   $('#export').onclick = () => {
     const stamp = new Date().toISOString().slice(0, 10);
-    deliverJson(buildExport([...state.birds.values()]), `derby-backup-${stamp}.json`, 'Derby backup');
+    deliverJson(buildExport([...state.birds.values()], logsArr(), [...state.keeps.values()]), `derby-backup-${stamp}.json`, 'Derby backup');
   };
   $('#import').onchange = async (e) => {
     const file = e.target.files[0];
@@ -890,14 +1379,18 @@ function renderMore() {
     if (!confirm(t('wipe.confirm', { n: state.birds.size }))) return;
     if (prompt(t('wipe.type')) !== 'DELETE') return toast(t('wipe.cancelled'));
     await db.clearBirds();
+    await db.clearLogs();
+    await db.clearKeeps();
     state.birds.clear();
+    state.logs.clear();
+    state.keeps.clear();
     toast(t('wipe.done'));
     location.hash = '#/';
   };
 }
 
-function buildExport(birds) {
-  return { app: 'derby', version: 1, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), birds, customLines: state.customLines };
+function buildExport(birds, logs = [], keeps = []) {
+  return { app: 'derby', version: 2, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), birds, logs, keeps, customLines: state.customLines };
 }
 
 async function deliverJson(data, filename, title) {
@@ -986,6 +1479,12 @@ async function importData(data) {
       await db.setMeta('customLines', merged);
     }
   }
+  const logs = mergeNewer(state.logs, (Array.isArray(data.logs) ? data.logs : []).map(sanitizeLog));
+  const keeps = mergeNewer(state.keeps, (Array.isArray(data.keeps) ? data.keeps : []).map(sanitizeKeep));
+  await db.putLogs(logs);
+  await db.putKeeps(keeps);
+  for (const l of logs) state.logs.set(l.id, l);
+  for (const k of keeps) state.keeps.set(k.id, k);
   requestPersistence();
   return { added, updated, skipped };
 }
@@ -1009,6 +1508,26 @@ async function loadSampleData() {
   ];
   await db.putBirds(birds);
   for (const b of birds) state.birds.set(b.id, b);
+
+  // A sample keep with a few weeks of logs so the Keep tab has something to show.
+  const today = todayStr();
+  const day = (n) => addDays(today, n);
+  const keep = { id: 'sample-keep', birdId: 'sample-a1', name: 'Derby keep', startDate: day(-10), fightDate: day(11), targetWeight: 2.1, status: 'active', notes: '', createdAt: now, updatedAt: now };
+  let n = 0;
+  const log = (birdId, type, date, data, notes = '') => ({ id: `sample-log-${++n}`, birdId, type, date, data, notes, createdAt: now + n, updatedAt: now + n });
+  const logs = [
+    ...[[-10, 2.32], [-8, 2.28], [-6, 2.25], [-4, 2.21], [-2, 2.19], [0, 2.16]].map(([d, kg]) => log('sample-a1', 'weight', day(d), { weight: kg })),
+    log('sample-a1', 'feed', today, { feed: 'Conditioning pellets', amount: '80 g' }),
+    log('sample-a1', 'exercise', day(-1), { activity: 'Running pen', minutes: 20 }),
+    log('sample-a1', 'sparring', day(-3), { partner: 'Sweater-Kelso Pullet', minutes: 3, rating: 4 }, 'Good timing, strong breaks'),
+    log('sample-a1', 'vitamins', day(-5), { product: 'B-complex', dose: '1 tablet' }),
+    log('sample-a1', 'vaccine', day(-80), { product: 'Newcastle (NCD)', nextDue: day(5) }),
+    log('sample-k1', 'deworm', day(-92), { product: 'Levamisole', nextDue: day(-2) }),
+  ];
+  await db.putKeep(keep);
+  await db.putLogs(logs);
+  state.keeps.set(keep.id, keep);
+  for (const l of logs) state.logs.set(l.id, l);
   toast(t('toast.sample'));
   renderList();
 }
@@ -1038,6 +1557,8 @@ async function init() {
     const birds = await db.getAllBirds();
     for (const b of birds) state.birds.set(b.id, b);
     state.customLines = (await db.getMeta('customLines')) || [];
+    for (const l of await db.getAllLogs()) state.logs.set(l.id, l);
+    for (const k of await db.getAllKeeps()) state.keeps.set(k.id, k);
   } catch {
     view.innerHTML = `<div class="card empty"><p>${t('storage.error')}</p></div>`;
     return;

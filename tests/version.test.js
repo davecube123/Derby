@@ -11,5 +11,5 @@ test('manifest version matches', () => assert.equal(JSON.parse(read('manifest.we
 test('service worker version matches', () => assert.match(read('sw.js'), new RegExp(`const VERSION = '${APP_VERSION.replace(/\./g, '\\.')}'`)));
 test('service worker caches every js file', () => {
   const sw = read('sw.js');
-  for (const f of ['app', 'db', 'genetics', 'constants', 'version', 'install', 'i18n']) assert.ok(sw.includes(`./js/${f}.js`), f);
+  for (const f of ['app', 'db', 'genetics', 'constants', 'version', 'install', 'i18n', 'conditioning', 'chart']) assert.ok(sw.includes(`./js/${f}.js`), f);
 });
