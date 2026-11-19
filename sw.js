@@ -1,5 +1,5 @@
 // Offline support: serve from the network when available, fall back to cache.
-const VERSION = '0.5.0'; // keep in sync with js/version.js
+const VERSION = '0.5.1'; // keep in sync with js/version.js
 const CACHE = `derby-${VERSION}`;
 const ASSETS = [
   './', './index.html', './css/styles.css', './js/app.js', './js/db.js', './js/genetics.js',
@@ -15,8 +15,8 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      // Only remove Derby's own old caches; Derby Keep (same site, /keep/) has its own.
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('derby-') && !k.startsWith('derby-keep-') && k !== CACHE).map((k) => caches.delete(k))))
+      // Only remove Derby's own old caches ("derby-<version>"); Derby Keep and Derby Swerte share this site.
+      .then((keys) => Promise.all(keys.filter((k) => /^derby-\d/.test(k) && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

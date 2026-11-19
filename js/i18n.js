@@ -128,6 +128,9 @@ const en = {
   'keepApp.text': 'Conditioning and health logs (keeps, weights, feeding, exercise, vaccines) are in the separate Derby Keep app. Install it on its own and bring your birds in with a Derby backup or Share pedigree file.',
   'keepApp.move': (v) => `You have ${v.n} log${v.n === 1 ? '' : 's'} from an earlier Derby version. Save a backup below and open it in Derby Keep (More → Import birds from Derby) to move them.`,
   'keepApp.open': 'Open Derby Keep',
+  'swerteApp.title': 'Derby Swerte app',
+  'swerteApp.text': 'Fight-day astrology: planetary hours, moon phase and favored feather colors, plus a color match against the opponent. For guidance only.',
+  'swerteApp.open': 'Open Derby Swerte',
 };
 
 const tl = {
@@ -254,6 +257,9 @@ const tl = {
   'keepApp.text': 'Nasa hiwalay na Derby Keep app ang kondisyon at kalusugan (keep, timbang, pakain, ehersisyo, bakuna). I-install ito nang hiwalay at kunin ang iyong mga manok gamit ang Derby backup o Share pedigree file.',
   'keepApp.move': (v) => `May ${v.n} log ka mula sa naunang bersyon ng Derby. Mag-save ng backup sa ibaba at buksan ito sa Derby Keep (Iba pa → Kunin ang manok mula sa Derby) para mailipat.`,
   'keepApp.open': 'Buksan ang Derby Keep',
+  'swerteApp.title': 'Derby Swerte app',
+  'swerteApp.text': 'Astrolohiya para sa araw ng laban: oras ng planeta, yugto ng buwan at paborableng kulay ng balahibo, pati tapatan ng kulay laban sa kalaban. Gabay lang.',
+  'swerteApp.open': 'Buksan ang Derby Swerte',
 };
 
 export const DICTS = { en, tl };

@@ -1,6 +1,6 @@
 # Derby
 
-**Version 0.5.0** (shown in the app under More → About)
+**Version 0.5.1** (shown in the app under More → About)
 
 Bloodline and pedigree records for gamefowl breeders and cockers in the Philippines.
 Derby is a mobile web app that installs on a phone like a normal app and keeps working without signal at the farm.
@@ -71,3 +71,14 @@ Friends open the link on their phone and use **Add to Home Screen** (Chrome: men
 | `keep/js/db.js` | Its own on-device database (`derby-keep`) |
 | `keep/js/i18n.js`, `keep/js/install.js`, `keep/js/version.js` | Text, install prompt, version |
 | `keep/sw.js`, `keep/manifest.webmanifest` | Offline support and install, scoped to `/keep/` |
+
+## Derby Swerte (`swerte/`)
+
+**Version 0.1.0.** Fight-day astrology, at https://davecube123.github.io/Derby/swerte/. It is for guidance only and the app says so on every screen.
+
+- **Today:** the planetary hour in force now, the planet of the day, moon phase and sign, sunrise and sunset, colors that are favored or not favored now, and the coming hours.
+- **Fight day:** all 24 planetary hours for a date. Pick your cock's color to see its verdict each hour and its best hours.
+- **Match:** your cock's color against the opponent's at a date and time, with the points and reasons for each side, plus better hours that day.
+- **More:** location (20 Philippine cities or the phone's GPS), how it works (the full planet → feather color table and the friendship table), install, and links to Derby and Derby Keep.
+
+The rules are set out in `swerte/js/rules.js` and the astronomy in `swerte/js/astro.js`. Both are unit tested against published sunrise and sunset times and known moon phases and signs. The app has no database: the only things saved are the chosen city and language, in the browser.
