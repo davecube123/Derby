@@ -51,30 +51,12 @@ async function putMany(storeName, items) {
   });
 }
 
-async function deleteMany(storeName, ids) {
-  const db = await open();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    for (const id of ids) store.delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
 export const putBirds = (birds) => putMany('birds', birds);
 
-// Conditioning logs and keeps
+// Logs and keeps from Derby v0.4 (now in Derby Keep): read for backups, cleared with "delete all".
 export const getAllLogs = () => run('logs', 'readonly', (s) => s.getAll());
-export const putLog = (log) => run('logs', 'readwrite', (s) => s.put(log));
-export const putLogs = (logs) => putMany('logs', logs);
-export const deleteLogs = (ids) => deleteMany('logs', ids);
 export const clearLogs = () => run('logs', 'readwrite', (s) => s.clear());
-
 export const getAllKeeps = () => run('keeps', 'readonly', (s) => s.getAll());
-export const putKeep = (keep) => run('keeps', 'readwrite', (s) => s.put(keep));
-export const putKeeps = (keeps) => putMany('keeps', keeps);
-export const deleteKeeps = (ids) => deleteMany('keeps', ids);
 export const clearKeeps = () => run('keeps', 'readwrite', (s) => s.clear());
 
 export async function getMeta(key) {

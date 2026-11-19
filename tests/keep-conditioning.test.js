@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseWeight, formatKg, daysBetween, addDays, keepProgress, weightSeries, latestWeight, dueItems } from '../js/conditioning.js';
+import { parseWeight, formatKg, daysBetween, addDays, keepProgress, weightSeries, latestWeight, dueItems } from '../keep/js/conditioning.js';
 
 test('parseWeight reads kilos, commas and grams', () => {
   assert.equal(parseWeight('2.15'), 2.15);

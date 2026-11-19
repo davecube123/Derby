@@ -1,6 +1,6 @@
 # Derby
 
-**Version 0.4.0** (shown in the app under More → About)
+**Version 0.5.0** (shown in the app under More → About)
 
 Bloodline and pedigree records for gamefowl breeders and cockers in the Philippines.
 Derby is a mobile web app that installs on a phone like a normal app and keeps working without signal at the farm.
@@ -13,7 +13,7 @@ Derby is a mobile web app that installs on a phone like a normal app and keeps w
 - **Inbreeding %**: Wright's coefficient, calculated from every recorded ancestor (full siblings = 25%, half siblings = 12.5%, and so on).
 - **Test mating**: pick a cock and a hen to see the offspring's bloodline, inbreeding % and shared ancestors before you breed them.
 - **Bloodlines**: common Philippine lines are included. You can add your own and see how many birds carry each line.
-- **Keep & health** (new tab): start a keep (conditioning program) for a bird with a derby date and target weight, see the day count and weight vs target on a chart, and log weight, feeding, exercise, sparring, vitamins, vaccines, deworming and health. Vaccines and deworming that are coming due or overdue are listed, and tapping one logs the next dose.
+- **Derby Keep** (separate app, see below) handles conditioning and health; Derby links to it under More.
 - **English / Tagalog** switch in the top bar.
 - **Install prompt**: a banner and a More → Install entry. Android uses the browser's install prompt; iPhone shows step-by-step Share → Add to Home Screen instructions.
 - **Backup and sharing** (More tab): save a backup file, restore it, or share one bird's pedigree with a friend over Messenger, Viber or email. Your friend imports it into their own Derby.
@@ -46,9 +46,28 @@ Friends open the link on their phone and use **Add to Home Screen** (Chrome: men
 | `js/db.js` | On-device storage (IndexedDB) |
 | `js/version.js` | App version (keep in sync with `package.json`, `manifest.webmanifest`, `sw.js`) |
 | `js/install.js` | Install banner and Android/iPhone install instructions |
-| `js/conditioning.js` | Keep and log logic: log types, weights, day counts, due reminders (unit tested) |
-| `js/chart.js` | Weight chart (SVG) with tap/hover tooltip |
 | `js/i18n.js` | English and Tagalog text |
 | `js/constants.js` | Sexes, statuses, preset bloodlines, colors |
 | `sw.js`, `manifest.webmanifest` | Offline support and install-to-home-screen |
 | `tests/` | Node unit tests |
+
+## Derby Keep (`keep/`)
+
+**Version 0.1.0.** A separate app for daily conditioning, at https://davecube123.github.io/Derby/keep/. It installs with its own icon, has its own data and has no pedigrees.
+
+- **Today:** active keeps (day count to the derby, weight against the target), vaccines and deworming due or overdue (tap to log the next dose), and recent logs.
+- **Birds:** a simple list (name, bands, sex, bloodline). You can add birds by hand or import them from a Derby backup or Share pedigree file, picking which ones (cocks and stags are ticked).
+- **Keeps:** a derby date and target weight, plus a weight chart with the target line.
+- **Logs:** weight (kg or grams), feeding, exercise, sparring (1–5), vitamins, vaccine, deworming and health.
+- **Shared with Derby:** the design (`css/styles.css`), the bloodline math (`js/genetics.js`) for imports, the rooster logo, and the language setting.
+
+| Path | Purpose |
+| --- | --- |
+| `keep/index.html`, `keep/css/keep.css` | App shell and keep-specific styles |
+| `keep/js/app.js` | Screens, forms, import/export |
+| `keep/js/conditioning.js` | Log types, weights, day counts, due reminders (unit tested) |
+| `keep/js/chart.js` | Weight chart (SVG) with tap/hover tooltip |
+| `keep/js/derby-import.js` | Reads Derby files into Derby Keep birds (unit tested) |
+| `keep/js/db.js` | Its own on-device database (`derby-keep`) |
+| `keep/js/i18n.js`, `keep/js/install.js`, `keep/js/version.js` | Text, install prompt, version |
+| `keep/sw.js`, `keep/manifest.webmanifest` | Offline support and install, scoped to `/keep/` |
