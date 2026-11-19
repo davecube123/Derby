@@ -2,7 +2,7 @@
   "name": "Derby – Gamefowl Pedigree",
   "short_name": "Derby",
   "description": "Bloodline and pedigree records for gamefowl breeders.",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "id": "./",
   "start_url": "./",
   "scope": "./",
