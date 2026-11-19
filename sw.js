@@ -1,9 +1,9 @@
 // Offline support: serve from the network when available, fall back to cache.
-const VERSION = '0.4.0'; // keep in sync with js/version.js
+const VERSION = '0.5.0'; // keep in sync with js/version.js
 const CACHE = `derby-${VERSION}`;
 const ASSETS = [
   './', './index.html', './css/styles.css', './js/app.js', './js/db.js', './js/genetics.js',
-  './js/constants.js', './js/version.js', './js/install.js', './js/i18n.js', './js/conditioning.js', './js/chart.js', './manifest.webmanifest',
+  './js/constants.js', './js/version.js', './js/install.js', './js/i18n.js', './manifest.webmanifest',
   './icons/logo.png', './icons/favicon-32.png', './icons/icon-192.png', './icons/icon-512.png',
   './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];
@@ -15,7 +15,8 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Only remove Derby's own old caches; Derby Keep (same site, /keep/) has its own.
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('derby-') && !k.startsWith('derby-keep-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
