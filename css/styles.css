@@ -333,3 +333,30 @@ input, select, textarea { scroll-margin: 80px 0 96px; }
   .comp-row .icon-btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 }
 .tabbar.tabbar-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* Derby Pro pairing advisor (beta) */
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.plain-link { color: inherit; text-decoration: none; }
+.plain-link strong { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+.badge.pro { background: var(--bar-bg); color: #fff; border-color: var(--bar-bg); box-shadow: inset 0 -2px 0 var(--accent); }
+.pro-btn::before { content: "★"; color: var(--accent); margin-right: 4px; }
+.btn.block.pro-btn { margin-top: 12px; }
+.btn:disabled { opacity: 0.55; cursor: progress; }
+.guide-note { margin: 12px 0 0; padding: 10px 12px; border-left: 3px solid var(--steel); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.adv-list { list-style: none; counter-reset: adv; padding: 0; margin: 0; }
+.adv-item { counter-increment: adv; position: relative; padding: 12px 0 12px 40px; border-top: 1px solid var(--border); }
+.adv-item:first-child { border-top: none; }
+.adv-item::before { content: counter(adv); position: absolute; left: 0; top: 12px; width: 28px; height: 28px; display: grid; place-items: center; background: var(--bar-bg); color: #fff; font-weight: 800; border-radius: 4px; }
+.adv-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.adv-verdict { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--border); white-space: nowrap; }
+.v-recommended .adv-verdict { background: var(--ok); border-color: var(--ok); color: #fff; }
+.v-possible .adv-verdict { color: var(--steel); }
+.v-avoid .adv-verdict { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.v-avoid::before { background: var(--muted); }
+.adv-facts { margin-top: 2px; }
+.adv-h { margin: 8px 0 2px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.adv-points { margin: 0; padding-left: 18px; font-size: 0.92rem; }
+.adv-points li { margin-bottom: 2px; }
+.adv-points.warn li::marker { color: var(--danger); }
+.seg.seg-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.seg.seg-2 label span { border-radius: var(--radius) !important; margin-left: 0 !important; }

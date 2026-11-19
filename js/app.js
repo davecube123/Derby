@@ -4,8 +4,11 @@ import { SEX, STATUS, PRESET_LINES, FEATHER_COLORS, LEG_COLORS, COMBS } from './
 import { APP_VERSION } from './version.js';
 import { t, getLang, setLang, locale, LANGS } from './i18n.js';
 import * as install from './install.js';
+import { pairingCandidates, advisorPayload, GOALS, INBREEDING_LIMITS } from './advisor.js';
 
 const state = {
+  pro: { server: '', code: '', rules: '', maxInbreeding: 0.125 },
+  advisor: { birdId: '', goal: 'balanced', note: '', result: null, error: '', loading: false },
   birds: new Map(),
   customLines: [],
   logs: new Map(),
@@ -157,7 +160,7 @@ function initLanguageSwitch() {
       applyShellLanguage();
       // Re-rendering a form would throw away what the user typed.
       const { parts } = parseHash();
-      const onForm = parts[0] === 'bird' && (parts[1] === 'new' || parts[2] === 'edit');
+      const onForm = (parts[0] === 'bird' && (parts[1] === 'new' || parts[2] === 'edit')) || parts[0] === 'pro';
       if (onForm) toast(t('lang.deferred'));
       else route({ keepScroll: true });
     };
@@ -177,7 +180,7 @@ function route(opts = {}) {
   const { parts, query } = parseHash();
   if (!opts.keepScroll) window.scrollTo(0, 0);
   const section = parts[0] || 'birds';
-  const navOf = { bird: 'birds', backup: 'more' };
+  const navOf = { bird: 'birds', backup: 'more', advisor: 'mating', pro: 'more' };
   setActiveNav(navOf[section] || section);
   if (!parts.length) return renderList();
   if (parts[0] === 'bird') {
@@ -188,6 +191,8 @@ function route(opts = {}) {
     return renderDetail(bird);
   }
   if (parts[0] === 'mating') return renderMating(query, opts.keepScroll);
+  if (parts[0] === 'advisor') return renderAdvisor(query);
+  if (parts[0] === 'pro') return renderProSettings();
   if (parts[0] === 'lines') return renderLines();
   if (parts[0] === 'more' || parts[0] === 'backup') return renderMore();
   return renderNotFound();
@@ -352,6 +357,7 @@ function renderDetail(b) {
     <div class="actions">
       <a class="btn primary" href="#/bird/${esc(b.id)}/edit">${t('btn.edit')}</a>
       <a class="btn" href="#/mating?${male ? 'sire' : 'dam'}=${encodeURIComponent(b.id)}">${t('btn.testMating')}</a>
+      ${SEX[b.sex] && b.status !== 'sold' && b.status !== 'deceased' ? `<a class="btn pro-btn" href="#/advisor?bird=${encodeURIComponent(b.id)}">${t('adv.findMate')}</a>` : ''}
       <button class="btn" id="share">${t('btn.share')}</button>
       <button class="btn danger" id="delete">${t('btn.delete')}</button>
     </div>`;
@@ -732,6 +738,7 @@ function renderMating(query, keepPicks = false) {
         <select id="m-dam"><option value="">${t('mating.choose')}</option>${females.map((x) => opt(x, damSel)).join('')}</select>
       </label>
       ${!males.length || !females.length ? `<p class="muted small">${t('mating.need')}</p>` : ''}
+      <a class="btn block pro-btn" href="#/advisor">${t('adv.fromMating')}</a>
     </section>
     <div id="m-result"></div>`;
 
@@ -832,6 +839,177 @@ function renderLines() {
 // Records made in Derby v0.4 are still loaded so they go into backups and can be moved there.
 const logsArr = () => [...state.logs.values()];
 
+// ---------- Derby Pro: pairing advisor (beta) ----------
+
+const PRO_TIMEOUT_MS = 90_000;
+const defaultPro = () => ({ server: '', code: '', rules: t('pro.defaultRules'), maxInbreeding: 0.125 });
+const proReady = () => !!(state.pro.server && state.pro.code);
+
+function renderAdvisor(query) {
+  setHeader(t('adv.title'), '#/mating');
+  const a = state.advisor;
+  if (query.get('bird') && state.birds.has(query.get('bird')) && query.get('bird') !== a.birdId) {
+    a.birdId = query.get('bird');
+    a.result = null;
+    a.error = '';
+  }
+  const birds = [...state.birds.values()]
+    .filter((b) => SEX[b.sex] && b.status !== 'sold' && b.status !== 'deceased')
+    .sort((x, y) => (SEX[y.sex].male ? 1 : 0) - (SEX[x.sex].male ? 1 : 0) || displayName(x).localeCompare(displayName(y)));
+  const candidates = a.birdId ? pairingCandidates(state.birds, a.birdId, state.pro.maxInbreeding) : [];
+  const over = candidates.filter((c) => c.overLimit).length;
+  const online = navigator.onLine !== false;
+
+  view.innerHTML = `
+    <section class="card form">
+      <div class="row-between"><h3>${t('adv.title')}</h3><span class="badge pro">${t('pro.badge')}</span></div>
+      <p class="muted small">${t('adv.intro')}</p>
+      <label>${t('adv.bird')}
+        <select id="a-bird"><option value="">${t('adv.choose')}</option>
+          ${birds.map((b) => `<option value="${esc(b.id)}"${b.id === a.birdId ? ' selected' : ''}>${esc(displayName(b))} · ${esc(sexLabel(b.sex))}</option>`).join('')}
+        </select>
+      </label>
+      <fieldset class="seg seg-2"><legend>${t('adv.goal')}</legend>
+        ${GOALS.map((g) => `<label><input type="radio" name="a-goal" value="${g}"${a.goal === g ? ' checked' : ''}><span>${t(`goal.${g}`)}</span></label>`).join('')}
+      </fieldset>
+      <label>${t('adv.maxInb')}
+        <select id="a-max">${INBREEDING_LIMITS.map((v) => `<option value="${v}"${v === state.pro.maxInbreeding ? ' selected' : ''}>${pct(v)}</option>`).join('')}</select>
+      </label>
+      <label>${t('adv.note')} <input id="a-note" value="${esc(a.note)}" placeholder="${esc(t('adv.notePh'))}" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" maxlength="500"></label>
+      ${a.birdId ? `<p class="small muted">${candidates.length ? esc(t('adv.candidates', { n: candidates.length, over })) : esc(t('adv.none'))}</p>` : ''}
+      ${!proReady() ? `<p class="small">${t('adv.setup')}</p><a class="btn block" href="#/pro">${t('adv.setupBtn')}</a>`
+        : !online ? `<p class="small">${t('adv.offline')}</p>`
+        : `<button class="btn primary block" id="a-ask" type="button"${!a.birdId || !candidates.length || a.loading ? ' disabled' : ''}>${a.loading ? t('adv.asking') : t('adv.ask')}</button>`}
+      <p class="muted small">${t('adv.privacy')}</p>
+    </section>
+    <div id="a-out" aria-live="polite">${advisorResultHTML()}</div>`;
+
+  $('#a-bird').onchange = (e) => { a.birdId = e.target.value; a.result = null; a.error = ''; renderAdvisor(new URLSearchParams()); };
+  for (const r of $$('input[name=a-goal]')) r.onchange = () => { a.goal = r.value; };
+  $('#a-max').onchange = async (e) => {
+    state.pro.maxInbreeding = Number(e.target.value);
+    await db.setMeta('pro', state.pro);
+    a.result = null;
+    renderAdvisor(new URLSearchParams());
+  };
+  $('#a-note').oninput = (e) => { a.note = e.target.value; };
+  $('#a-note').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
+  $('#a-ask')?.addEventListener('click', askAdvisor);
+}
+
+async function askAdvisor() {
+  const a = state.advisor;
+  const payload = advisorPayload(state.birds, a.birdId, { goal: a.goal, note: a.note, rules: state.pro.rules, lang: getLang(), maxInbreeding: state.pro.maxInbreeding });
+  a.loading = true;
+  a.error = '';
+  a.result = null;
+  renderAdvisor(new URLSearchParams());
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PRO_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${state.pro.server.replace(/\/+$/, '')}/api/pairing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Access-Code': state.pro.code },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const code = body?.code;
+      a.error = res.status === 401 ? 'auth' : res.status === 429 ? 'limit' : code === 'refused' ? 'refused' : 'server';
+    } else if (!body?.advice || !Array.isArray(body.advice.recommendations)) {
+      a.error = 'bad';
+    } else {
+      a.result = { ...body, birdId: a.birdId, lang: getLang() };
+    }
+  } catch {
+    a.error = navigator.onLine === false ? 'offline' : 'server';
+  } finally {
+    clearTimeout(timer);
+    a.loading = false;
+    if (parseHash().parts[0] === 'advisor') renderAdvisor(new URLSearchParams());
+  }
+}
+
+function advisorResultHTML() {
+  const a = state.advisor;
+  if (a.error) return `<section class="card"><p class="error">${t(a.error === 'offline' ? 'adv.offline' : `adv.err.${a.error}`)}</p></section>`;
+  const r = a.result;
+  if (!r || r.birdId !== a.birdId) return '';
+  const bird = state.birds.get(r.birdId);
+  const male = SEX[bird?.sex]?.male;
+  const local = new Map(pairingCandidates(state.birds, r.birdId, state.pro.maxInbreeding).map((c) => [c.bird.id, c]));
+  const recs = r.advice.recommendations.filter((x) => state.birds.has(x.candidateId));
+  return `
+    ${r.practice ? `<section class="card"><p class="small"><strong>${t('adv.practice')}</strong></p></section>` : ''}
+    ${r.advice.summary ? `<section class="card"><h3>${t('adv.summary')}</h3><p>${esc(r.advice.summary)}</p></section>` : ''}
+    <section class="card">
+      <h3>${t('adv.results')}</h3>
+      <ol class="adv-list">
+        ${recs.map((x) => {
+          const c = state.birds.get(x.candidateId);
+          const loc = local.get(x.candidateId);
+          const sire = male ? r.birdId : x.candidateId;
+          const dam = male ? x.candidateId : r.birdId;
+          return `<li class="adv-item v-${x.verdict}">
+            <div class="adv-top">
+              <a class="plain-link" href="#/bird/${esc(c.id)}"><strong>${esc(displayName(c))}</strong></a>
+              <span class="adv-verdict">${x.verdict === 'avoid' ? '✕ ' : x.verdict === 'recommended' ? '★ ' : ''}${t(`verdict.${x.verdict}`)}</span>
+            </div>
+            <div class="adv-facts muted small">${esc(t('adv.fit', { n: x.fit }))}${loc ? ` · ${esc(t('adv.inb', { pct: pct(loc.offspring.inbreeding) }))} · ${esc(t('adv.offspring', { blood: loc.offspring.bloodline.slice(0, 3).join(' · ') }))}` : ''}</div>
+            ${x.reasons.length ? `<p class="adv-h">${t('adv.why')}</p><ul class="adv-points">${x.reasons.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
+            ${x.cautions.length ? `<p class="adv-h">${t('adv.watch')}</p><ul class="adv-points warn">${x.cautions.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
+            <div class="btn-row">
+              <a class="btn small" href="#/mating?sire=${encodeURIComponent(sire)}&dam=${encodeURIComponent(dam)}">${t('adv.testMating')}</a>
+              ${x.verdict !== 'avoid' ? `<a class="btn small" href="#/bird/new?sire=${encodeURIComponent(sire)}&dam=${encodeURIComponent(dam)}">${t('adv.record')}</a>` : ''}
+            </div>
+          </li>`;
+        }).join('')}
+      </ol>
+    </section>
+    ${r.advice.advice ? `<section class="card"><h3>${t('adv.advice')}</h3><p>${esc(r.advice.advice)}</p></section>` : ''}
+    <p class="guide-note small muted">${t('adv.disclaimer')}${r.lang !== getLang() ? ` ${t('adv.langNote')}` : ''}</p>`;
+}
+
+function renderProSettings() {
+  setHeader(t('pro.title'), '#/more');
+  const p = state.pro;
+  view.innerHTML = `
+    <form id="pro-form" class="form" novalidate>
+      <section class="card">
+        <div class="row-between"><h3>${t('pro.title')}</h3><span class="badge pro">${t('pro.badge')}</span></div>
+        <p class="muted small">${t('pro.text')}</p>
+        <label>${t('pro.server')} <input name="server" type="url" inputmode="url" value="${esc(p.server)}" placeholder="${esc(t('pro.serverPh'))}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="next"></label>
+        <label>${t('pro.code')} <input name="code" value="${esc(p.code)}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="next"></label>
+      </section>
+      <section class="card">
+        <h3>${t('pro.rules')}</h3>
+        <p class="muted small">${t('pro.rulesHint')}</p>
+        <label class="sr-only" for="pro-rules">${t('pro.rules')}</label>
+        <textarea id="pro-rules" name="rules" rows="9" maxlength="3000" autocapitalize="sentences">${esc(p.rules)}</textarea>
+      </section>
+      <p id="form-error" class="error" role="alert"></p>
+      <div class="actions sticky">
+        <a class="btn" href="#/more">${t('btn.cancel')}</a>
+        <button class="btn primary" type="submit">${t('pro.save')}</button>
+      </div>
+    </form>`;
+  const form = $('#pro-form');
+  enableKeyboardFlow(form);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const server = form.server.value.trim();
+    if (server && !/^https?:\/\/[^\s/]+/i.test(server)) {
+      $('#form-error').textContent = t('pro.badServer');
+      return;
+    }
+    state.pro = { ...state.pro, server, code: form.code.value.trim(), rules: form.rules.value.trim() };
+    await db.setMeta('pro', state.pro);
+    toast(t('pro.saved'));
+    location.hash = '#/advisor';
+  };
+}
+
 // ---------- more: install, backup & sharing, about ----------
 
 function renderMore() {
@@ -844,6 +1022,11 @@ function renderMore() {
         ? `<p class="ok">${t('install.done')}</p>`
         : `<p class="muted small">${t('install.hint')}</p>
            <button class="btn primary block" id="install">${install.isIOS() ? t('install.ios') : t('install.btn')}</button>`}
+    </section>
+    <section class="card">
+      <div class="row-between"><h3>${t('pro.title')}</h3><span class="badge pro">${t('pro.badge')}</span></div>
+      <p class="muted small">${t('pro.text')}</p>
+      <div class="btn-row"><a class="btn primary" href="#/advisor">${t('pro.open')}</a><a class="btn" href="#/pro">${t('pro.settings')}</a></div>
     </section>
     <section class="card">
       <h3>${t('keepApp.title')}</h3>
@@ -1061,6 +1244,7 @@ async function init() {
     const birds = await db.getAllBirds();
     for (const b of birds) state.birds.set(b.id, b);
     state.customLines = (await db.getMeta('customLines')) || [];
+    state.pro = { ...defaultPro(), ...((await db.getMeta('pro')) || {}) };
     for (const l of await db.getAllLogs()) state.logs.set(l.id, l);
     for (const k of await db.getAllKeeps()) state.keeps.set(k.id, k);
   } catch {

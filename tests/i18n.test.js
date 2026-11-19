@@ -15,7 +15,7 @@ test('English and Tagalog have exactly the same keys', () => {
 test('every key used in the code exists', () => {
   const src = ['js/app.js', 'js/install.js'].map(read).join('\n') + read('index.html');
   const used = new Set([...src.matchAll(/\bt\('([\w.]+)'/g), ...src.matchAll(/data-i18n(?:-aria)?="([\w.]+)"/g)].map((m) => m[1]));
-  for (const prefix of ['sex', 'status', 'gen', 'type', 'lf']) for (const k of Object.keys(DICTS.en)) if (k.startsWith(`${prefix}.`)) used.add(k);
+  for (const prefix of ['sex', 'status', 'gen', 'type', 'lf', 'goal', 'verdict', 'adv.err']) for (const k of Object.keys(DICTS.en)) if (k.startsWith(`${prefix}.`)) used.add(k);
   const missing = [...used].filter((k) => !(k in DICTS.en));
   assert.deepEqual(missing, []);
 });

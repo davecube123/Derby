@@ -5,6 +5,8 @@ This repo holds two mobile web apps for gamefowl breeders and cockers in the Phi
 - **Derby Keep** (`keep/`): conditioning keeps and daily logs (weight, feeding, exercise, sparring, vitamins, vaccines, deworming, health). The owner's friends asked for it to be **separate from Derby**, so keep conditioning features out of Derby.
 - **Derby Swerte** (`swerte/`): fight-day astrology. It uses planetary days and hours, moon phase and moon sign, all calculated, plus the traditional planet colors mapped to feather colors. It always presents results as guidance, not prediction; keep that note on every screen. The planet → feather mapping is the app's own choice and is shown in How it works. Change it only in `swerte/js/rules.js`.
 
+- **Derby Pro** (beta, inside Derby + `pro-server/`): an AI pairing advisor. Derby calculates candidates, the chicks' blood and inbreeding on the phone (`js/advisor.js`). `pro-server/` (Node, Anthropic SDK, `claude-opus-5-5`) holds the API key, checks requests, asks Claude for a structured ranking, and always forces "avoid" over the farm's inbreeding limit (`pro-server/advisor.js`). The API key must never go into any app file. AI features are the only part that needs internet; everything else stays offline-first.
+
 The apps share `css/styles.css`, `js/genetics.js`, `icons/` and the language setting, and nothing else. Each has its own data, version, service worker, manifest and install prompt. Each service worker deletes only its own caches: Derby's only `derby-<version>`, Derby Keep's `derby-keep-*`, Derby Swerte's `derby-swerte-*`. Birds move from Derby to Derby Keep through Derby's backup or Share pedigree file.
 The owner's standing principles below apply to **every app built here, now and in the future**.
 
