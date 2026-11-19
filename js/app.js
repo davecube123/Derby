@@ -1,6 +1,8 @@
 import * as db from './db.js';
 import * as G from './genetics.js';
 import { SEX, STATUS, PRESET_LINES, FEATHER_COLORS, LEG_COLORS, COMBS } from './constants.js';
+import { APP_VERSION } from './version.js';
+import * as install from './install.js';
 
 const state = {
   birds: new Map(),
@@ -120,7 +122,7 @@ function route() {
   const { parts, query } = parseHash();
   window.scrollTo(0, 0);
   const section = parts[0] || 'birds';
-  setActiveNav(section === 'bird' ? 'birds' : section);
+  setActiveNav(section === 'bird' ? 'birds' : section === 'backup' ? 'more' : section);
   if (!parts.length) return renderList();
   if (parts[0] === 'bird') {
     if (parts[1] === 'new') return renderForm(null, query);
@@ -131,7 +133,7 @@ function route() {
   }
   if (parts[0] === 'mating') return renderMating(query);
   if (parts[0] === 'lines') return renderLines();
-  if (parts[0] === 'backup') return renderBackup();
+  if (parts[0] === 'more' || parts[0] === 'backup') return renderMore();
   return renderNotFound();
 }
 
@@ -148,6 +150,7 @@ function renderList() {
 
   if (!state.birds.size) {
     view.innerHTML = `
+      ${install.bannerHTML()}
       <section class="card welcome">
         <div class="welcome-icon">${roosterSvg}</div>
         <h2>Welcome to Derby</h2>
@@ -159,13 +162,16 @@ function renderList() {
         </ol>
         <a class="btn primary block" href="#/bird/new">Add your first bird</a>
         <button class="btn block" id="sample">Try it with sample birds</button>
-        <p class="muted small">Your records stay on this phone. Use Backup to save a copy or share birds with friends.</p>
-      </section>`;
+        <p class="muted small">Your records stay on this phone. Use More → Backup to save a copy or share birds with friends.</p>
+      </section>
+      <p class="version-foot">Derby v${APP_VERSION}</p>`;
     $('#sample').onclick = loadSampleData;
+    install.bindBanner(view);
     return;
   }
 
   view.innerHTML = `
+    ${install.bannerHTML()}
     <div class="toolbar">
       <input type="search" id="q" placeholder="Search name, band, line, breeder…" value="${esc(f.q)}" aria-label="Search birds" autocomplete="off">
       <div class="chips" role="group" aria-label="Filter by sex">
@@ -199,6 +205,7 @@ function renderList() {
       : `<li class="card empty"><p>No birds match.</p></li>`;
   };
 
+  install.bindBanner(view);
   $('#q').oninput = (e) => { f.q = e.target.value; draw(); };
   $('#status').onchange = (e) => { f.status = e.target.value; draw(); };
   for (const chip of $$('.chip')) {
@@ -736,11 +743,19 @@ function renderLines() {
 
 // ---------- backup & sharing ----------
 
-function renderBackup() {
-  setHeader('Backup & share', null);
+function renderMore() {
+  setHeader('More', null);
+  const installed = install.isStandalone();
   view.innerHTML = `
     <section class="card">
-      <h3>Your data</h3>
+      <h3>Install app</h3>
+      ${installed
+        ? '<p class="ok">✓ Derby is installed on this device.</p>'
+        : `<p class="muted small">Add Derby to your home screen so it opens like a normal app and works without signal.</p>
+           <button class="btn primary block" id="install">${install.isIOS() ? 'How to install on iPhone' : 'Install Derby'}</button>`}
+    </section>
+    <section class="card">
+      <h3>Backup</h3>
       <p>${state.birds.size} bird${state.birds.size === 1 ? '' : 's'} saved on this phone. Records are not uploaded anywhere, so make a backup regularly. If you lose your phone or clear the browser, records without a backup are gone.</p>
       <button class="btn primary block" id="export">Save backup file</button>
     </section>
@@ -757,7 +772,17 @@ function renderBackup() {
     <section class="card">
       <h3>Danger zone</h3>
       <button class="btn danger block" id="wipe">Delete all birds on this phone</button>
+    </section>
+    <section class="card about">
+      <h3>About</h3>
+      <dl class="facts">
+        <dt>App</dt><dd>Derby: gamefowl pedigree</dd>
+        <dt>Version</dt><dd id="app-version">v${APP_VERSION}</dd>
+        <dt>Birds</dt><dd>${state.birds.size}</dd>
+      </dl>
     </section>`;
+
+  $('#install')?.addEventListener('click', install.startInstall);
 
   $('#export').onclick = () => {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -771,7 +796,7 @@ function renderBackup() {
       const data = JSON.parse(await file.text());
       const r = await importData(data);
       toast(`Imported: ${r.added} new, ${r.updated} updated, ${r.skipped} unchanged`);
-      renderBackup();
+      renderMore();
     } catch (err) {
       toast(err.message || 'That file is not a Derby backup');
     }
@@ -788,7 +813,7 @@ function renderBackup() {
 }
 
 function buildExport(birds) {
-  return { app: 'derby', version: 1, exportedAt: new Date().toISOString(), birds, customLines: state.customLines };
+  return { app: 'derby', version: 1, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), birds, customLines: state.customLines };
 }
 
 async function deliverJson(data, filename, title) {
@@ -924,6 +949,12 @@ async function init() {
   }
   window.addEventListener('hashchange', route);
   route();
+  install.onInstallChange(() => { if (parseHash().parts[0] === 'more') renderMore(); });
+  try {
+    const last = await db.getMeta('lastVersion');
+    if (last && last !== APP_VERSION) toast(`Derby updated to v${APP_VERSION}`);
+    if (last !== APP_VERSION) await db.setMeta('lastVersion', APP_VERSION);
+  } catch { /* non-critical */ }
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }

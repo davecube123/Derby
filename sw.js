@@ -1,8 +1,10 @@
 // Offline support: serve from the network when available, fall back to cache.
-const CACHE = 'derby-v1';
+const VERSION = '0.2.0'; // keep in sync with js/version.js
+const CACHE = `derby-${VERSION}`;
 const ASSETS = [
   './', './index.html', './css/styles.css', './js/app.js', './js/db.js', './js/genetics.js',
-  './js/constants.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
+  './js/constants.js', './js/version.js', './js/install.js', './manifest.webmanifest',
+  './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {
