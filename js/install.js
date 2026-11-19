@@ -92,7 +92,7 @@ function openSheet() {
     <div class="sheet-backdrop" data-close></div>
     <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet-head">
-        <img src="icons/icon.svg" alt="" width="44" height="44">
+        <img src="icons/logo.png" alt="" width="44" height="44">
         <div><h2 id="sheet-title">${s.title}</h2><p class="muted small">Free. Works offline. No app store needed.</p></div>
       </div>
       <ol class="steps">${s.items.map((t) => `<li><span>${t}</span></li>`).join('')}</ol>
@@ -117,7 +117,7 @@ function openSheet() {
 export function bannerHTML() {
   if (!shouldShowBanner()) return '';
   return `<div class="install-banner" id="install-banner">
-    <img src="icons/icon.svg" alt="" width="40" height="40">
+    <img src="icons/logo.png" alt="" width="40" height="40">
     <div class="ib-text"><strong>Install Derby</strong><span>Add it to your home screen. Works offline.</span></div>
     <button class="btn primary small" id="ib-install">Install</button>
     <button class="icon-btn" id="ib-close" aria-label="Hide install banner">×</button>

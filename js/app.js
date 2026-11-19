@@ -105,10 +105,10 @@ const statusBadge = (b) => (STATUS[b.status] ? `<span class="badge status">${STA
 
 function thumb(b, cls = 'thumb') {
   if (b.photo) return `<img class="${cls}" src="${esc(b.photo)}" alt="">`;
-  return `<span class="${cls} placeholder" aria-hidden="true">${roosterSvg}</span>`;
+  return `<span class="${cls} placeholder" aria-hidden="true">${noPhotoSvg}</span>`;
 }
 
-const roosterSvg = `<svg viewBox="0 0 64 64" fill="currentColor"><path d="M24 8c2 3 1 5 3 6 1-3 3-5 6-5-1 2 0 3 1 4 2-2 5-2 7-1-2 1-3 3-3 5 4 1 6 5 5 9l5 1-5 3c-1 4-4 7-8 8 6 2 14-2 17-9 3 4 3 11-1 16-3 4-9 7-16 7l2 7h3v2h-9l-1-2 2-1-2-6c-2 0-4 0-6-1l-1 6 2 1v2h-8l-1-2h3l1-8c-6-4-9-11-8-18 0-5 4-9 9-10-2-3-2-6 0-9-2-2-2-4-1-6z"/></svg>`;
+const noPhotoSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
 
 // ---------- routing ----------
 
@@ -152,7 +152,7 @@ function renderList() {
     view.innerHTML = `
       ${install.bannerHTML()}
       <section class="card welcome">
-        <div class="welcome-icon">${roosterSvg}</div>
+        <img class="welcome-logo" src="icons/logo.png" alt="Derby logo">
         <h2>Welcome to Derby</h2>
         <p>Keep the bloodline and pedigree of every cock, stag, hen and pullet on your farm.</p>
         <ol>
@@ -255,7 +255,7 @@ function renderDetail(b) {
 
   view.innerHTML = `
     <section class="hero">
-      ${b.photo ? `<img class="hero-photo" src="${esc(b.photo)}" alt="Photo of ${esc(displayName(b))}">` : `<div class="hero-photo placeholder" aria-hidden="true">${roosterSvg}</div>`}
+      ${b.photo ? `<img class="hero-photo" src="${esc(b.photo)}" alt="Photo of ${esc(displayName(b))}">` : `<div class="hero-photo placeholder" aria-hidden="true">${noPhotoSvg}</div>`}
       <div>
         <h2>${esc(displayName(b))}</h2>
         <div class="badges">${sexBadge(b)}${statusBadge(b)}</div>
