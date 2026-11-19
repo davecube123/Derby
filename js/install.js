@@ -1,5 +1,6 @@
 // "Install app" prompt for Android/desktop Chrome (native prompt) and
 // step-by-step instructions for iPhone/iPad and other browsers.
+import { t } from './i18n.js';
 
 const DISMISS_KEY = 'derby.installDismissedAt';
 const DISMISS_DAYS = 7;
@@ -50,23 +51,23 @@ const dotsIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy
 
 function steps() {
   if (isIOS()) {
-    const where = isIOSSafari() ? 'at the bottom of Safari' : 'in the address bar (top right)';
+    const where = isIOSSafari() ? t('ios.whereSafari') : t('ios.whereOther');
     return {
-      title: 'Install on iPhone / iPad',
+      title: t('sheet.ios'),
       items: [
-        `Tap the <b>Share</b> button <span class="kbd">${shareIcon}</span> ${where}.`,
-        `Scroll down and tap <b>Add to Home Screen</b> <span class="kbd">${plusIcon}</span>.`,
-        'Tap <b>Add</b> (top right). Derby now opens from your home screen like any app.',
+        t('ios.step1', { icon: `<span class="kbd">${shareIcon}</span>`, where }),
+        t('ios.step2', { icon: `<span class="kbd">${plusIcon}</span>` }),
+        t('ios.step3'),
       ],
-      note: isIOSSafari() ? '' : 'If you don\'t see “Add to Home Screen”, open this page in Safari and try again.',
+      note: isIOSSafari() ? '' : t('ios.note'),
     };
   }
   return {
-    title: 'Install on Android',
+    title: t('sheet.android'),
     items: [
-      `Tap the browser menu <span class="kbd">${dotsIcon}</span> (top right in Chrome).`,
-      'Tap <b>Install app</b> or <b>Add to Home screen</b>.',
-      'Tap <b>Install</b>. Derby now opens from your home screen like any app.',
+      t('and.step1', { icon: `<span class="kbd">${dotsIcon}</span>` }),
+      t('and.step2'),
+      t('and.step3'),
     ],
     note: '',
   };
@@ -93,11 +94,11 @@ function openSheet() {
     <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet-head">
         <img src="icons/logo.png" alt="" width="44" height="44">
-        <div><h2 id="sheet-title">${s.title}</h2><p class="muted small">Free. Works offline. No app store needed.</p></div>
+        <div><h2 id="sheet-title">${s.title}</h2><p class="muted small">${t('sheet.sub')}</p></div>
       </div>
       <ol class="steps">${s.items.map((t) => `<li><span>${t}</span></li>`).join('')}</ol>
       ${s.note ? `<p class="muted small">${s.note}</p>` : ''}
-      <button class="btn primary block" data-close>Got it</button>
+      <button class="btn primary block" data-close>${t('sheet.ok')}</button>
     </div>`;
   sheet.hidden = false;
   document.body.classList.add('no-scroll');
@@ -118,9 +119,9 @@ export function bannerHTML() {
   if (!shouldShowBanner()) return '';
   return `<div class="install-banner" id="install-banner">
     <img src="icons/logo.png" alt="" width="40" height="40">
-    <div class="ib-text"><strong>Install Derby</strong><span>Add it to your home screen. Works offline.</span></div>
-    <button class="btn primary small" id="ib-install">Install</button>
-    <button class="icon-btn" id="ib-close" aria-label="Hide install banner">×</button>
+    <div class="ib-text"><strong>${t('banner.title')}</strong><span>${t('banner.text')}</span></div>
+    <button class="btn primary small" id="ib-install">${t('banner.btn')}</button>
+    <button class="icon-btn" id="ib-close" aria-label="${t('banner.close')}">×</button>
   </div>`;
 }
 

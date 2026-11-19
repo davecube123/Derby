@@ -2,6 +2,7 @@ import * as db from './db.js';
 import * as G from './genetics.js';
 import { SEX, STATUS, PRESET_LINES, FEATHER_COLORS, LEG_COLORS, COMBS } from './constants.js';
 import { APP_VERSION } from './version.js';
+import { t, getLang, setLang, locale, LANGS } from './i18n.js';
 import * as install from './install.js';
 
 const state = {
@@ -25,6 +26,9 @@ const uid = () =>
 const $ = (sel, root = view) => root.querySelector(sel);
 const $$ = (sel, root = view) => [...root.querySelectorAll(sel)];
 
+const sexLabel = (k) => (SEX[k] ? t(`sex.${k}`) : '');
+const statusLabel = (k) => (STATUS[k] ? t(`status.${k}`) : '');
+
 const displayName = (b) => b?.name || (b?.wingband && `WB ${b.wingband}`) || (b?.legband && `LB ${b.legband}`) || 'Unnamed';
 
 function bandLabel(b) {
@@ -42,26 +46,41 @@ function ageLabel(dateStr) {
   let months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
   if (now.getDate() < d.getDate()) months -= 1;
   if (months < 0) return '';
-  if (months < 1) return 'under 1 mo';
+  if (months < 1) return t('age.lt1');
   const y = Math.floor(months / 12);
   const m = months % 12;
-  return [y && `${y} yr`, m && `${m} mo`].filter(Boolean).join(' ');
+  return [y && t('age.y', { n: y }), m && t('age.m', { n: m })].filter(Boolean).join(' ');
 }
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(`${dateStr}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(locale(), { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 const pct = (f) => `${(f * 100).toFixed(f > 0 && f < 0.1 ? 2 : 1).replace(/\.?0+$/, '')}%`;
 
+/** Bloodline names stay as entered; only the "Unknown" bucket is translated. */
+const lineName = (k) => (k === G.UNKNOWN ? t('ped.unknown') : k);
+const shareText = (v) => (Math.abs(v - 1) < 1e-6 ? t('share.full') : G.formatShare(v));
+
+// Common blood fractions, picked from a list so nobody has to type "/" on a phone keyboard.
+const SHARE_OPTIONS = [1, 15 / 16, 7 / 8, 13 / 16, 3 / 4, 11 / 16, 5 / 8, 9 / 16, 1 / 2, 7 / 16, 3 / 8, 5 / 16, 1 / 4, 3 / 16, 1 / 8, 1 / 16, 1 / 32];
+
 function compSummary(comp, max = 3) {
   const entries = G.sortedEntries(comp);
-  if (!entries.length) return 'Bloodline not recorded';
-  const shown = entries.slice(0, max).map(([k, v]) => `${G.formatShare(v)} ${k}`);
+  if (!entries.length) return t('comp.none');
+  const shown = entries.slice(0, max).map(([k, v]) => `${shareText(v)} ${lineName(k)}`);
   if (entries.length > max) shown.push('…');
   return shown.join(' · ');
+}
+
+function inbreedingText(f) {
+  if (f < 1e-6) return t('inb.none');
+  if (f <= 0.0625 + 1e-6) return t('inb.low');
+  if (f <= 0.125 + 1e-6) return t('inb.moderate');
+  if (f <= 0.25 + 1e-6) return t('inb.high');
+  return t('inb.veryHigh');
 }
 
 const allLines = () => [...new Set([...PRESET_LINES, ...state.customLines])].sort((a, b) => a.localeCompare(b));
@@ -100,8 +119,8 @@ function setActiveNav(section) {
   }
 }
 
-const sexBadge = (b) => (SEX[b.sex] ? `<span class="badge sex-${b.sex}">${SEX[b.sex].label}</span>` : '');
-const statusBadge = (b) => (STATUS[b.status] ? `<span class="badge status">${STATUS[b.status]}</span>` : '');
+const sexBadge = (b) => (SEX[b.sex] ? `<span class="badge sex-${b.sex}">${esc(sexLabel(b.sex))}</span>` : '');
+const statusBadge = (b) => (STATUS[b.status] ? `<span class="badge status">${esc(statusLabel(b.status))}</span>` : '');
 
 function thumb(b, cls = 'thumb') {
   if (b.photo) return `<img class="${cls}" src="${esc(b.photo)}" alt="">`;
@@ -109,6 +128,40 @@ function thumb(b, cls = 'thumb') {
 }
 
 const noPhotoSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
+
+// ---------- language ----------
+
+/** Translate the static shell (tab labels, aria labels) and the language switch. */
+function applyShellLanguage() {
+  document.documentElement.lang = getLang() === 'tl' ? 'tl' : 'en';
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  for (const btn of document.querySelectorAll('.lang button')) {
+    const on = btn.dataset.lang === getLang();
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', on);
+  }
+}
+
+function initLanguageSwitch() {
+  const wrap = document.getElementById('lang');
+  wrap.innerHTML = Object.entries(LANGS)
+    .map(([code, label]) => `<button type="button" data-lang="${code}" lang="${code}">${label}</button>`)
+    .join('');
+  for (const btn of wrap.querySelectorAll('button')) {
+    btn.onclick = () => {
+      if (btn.dataset.lang === getLang()) return;
+      setLang(btn.dataset.lang);
+      applyShellLanguage();
+      // Re-rendering a form would throw away what the user typed.
+      const { parts } = parseHash();
+      const onForm = parts[0] === 'bird' && (parts[1] === 'new' || parts[2] === 'edit');
+      if (onForm) toast(t('lang.deferred'));
+      else route({ keepScroll: true });
+    };
+  }
+  applyShellLanguage();
+}
 
 // ---------- routing ----------
 
@@ -118,9 +171,9 @@ function parseHash() {
   return { parts: path.split('/').filter(Boolean), query: new URLSearchParams(query) };
 }
 
-function route() {
+function route(opts = {}) {
   const { parts, query } = parseHash();
-  window.scrollTo(0, 0);
+  if (!opts.keepScroll) window.scrollTo(0, 0);
   const section = parts[0] || 'birds';
   setActiveNav(section === 'bird' ? 'birds' : section === 'backup' ? 'more' : section);
   if (!parts.length) return renderList();
@@ -131,15 +184,15 @@ function route() {
     if (parts[2] === 'edit') return renderForm(bird, query);
     return renderDetail(bird);
   }
-  if (parts[0] === 'mating') return renderMating(query);
+  if (parts[0] === 'mating') return renderMating(query, opts.keepScroll);
   if (parts[0] === 'lines') return renderLines();
   if (parts[0] === 'more' || parts[0] === 'backup') return renderMore();
   return renderNotFound();
 }
 
 function renderNotFound() {
-  setHeader('Not found', '#/');
-  view.innerHTML = `<div class="card empty"><p>That bird was not found. It may have been deleted.</p><a class="btn" href="#/">Back to birds</a></div>`;
+  setHeader(t('notFound.title'), '#/');
+  view.innerHTML = `<div class="card empty"><p>${t('notFound.text')}</p><a class="btn" href="#/">${t('notFound.back')}</a></div>`;
 }
 
 // ---------- bird list ----------
@@ -153,16 +206,16 @@ function renderList() {
       ${install.bannerHTML()}
       <section class="card welcome">
         <img class="welcome-logo" src="icons/logo.png" alt="Derby logo">
-        <h2>Welcome to Derby</h2>
-        <p>Keep the bloodline and pedigree of every cock, stag, hen and pullet on your farm.</p>
+        <h2>${t('welcome.title')}</h2>
+        <p>${t('welcome.intro')}</p>
         <ol>
-          <li>Start with your <strong>brood stock</strong> and enter their bloodlines (e.g. ½ Sweater, ½ Kelso).</li>
-          <li>Add their offspring and pick the sire and dam. Derby works out the blood automatically.</li>
-          <li>Use <strong>Mating</strong> to check bloodline and inbreeding before you breed a pair.</li>
+          <li>${t('welcome.step1')}</li>
+          <li>${t('welcome.step2')}</li>
+          <li>${t('welcome.step3')}</li>
         </ol>
-        <a class="btn primary block" href="#/bird/new">Add your first bird</a>
-        <button class="btn block" id="sample">Try it with sample birds</button>
-        <p class="muted small">Your records stay on this phone. Use More → Backup to save a copy or share birds with friends.</p>
+        <a class="btn primary block" href="#/bird/new">${t('welcome.add')}</a>
+        <button class="btn block" id="sample">${t('welcome.sample')}</button>
+        <p class="muted small">${t('welcome.privacy')}</p>
       </section>
       <p class="version-foot">Derby v${APP_VERSION}</p>`;
     $('#sample').onclick = loadSampleData;
@@ -173,18 +226,18 @@ function renderList() {
   view.innerHTML = `
     ${install.bannerHTML()}
     <div class="toolbar">
-      <input type="search" id="q" placeholder="Search name, band, line, breeder…" value="${esc(f.q)}" aria-label="Search birds" autocomplete="off">
-      <div class="chips" role="group" aria-label="Filter by sex">
-        ${['all', ...Object.keys(SEX)].map((s) => `<button type="button" class="chip${f.sex === s ? ' on' : ''}" data-sex="${s}" aria-pressed="${f.sex === s}">${s === 'all' ? 'All' : SEX[s].label}</button>`).join('')}
+      <input type="search" id="q" enterkeyhint="search" placeholder="${esc(t('list.search'))}" value="${esc(f.q)}" aria-label="${esc(t('list.searchAria'))}" autocomplete="off">
+      <div class="chips" role="group" aria-label="${esc(t('list.sexAria'))}">
+        ${['all', ...Object.keys(SEX)].map((s) => `<button type="button" class="chip${f.sex === s ? ' on' : ''}" data-sex="${s}" aria-pressed="${f.sex === s}">${esc(s === 'all' ? t('list.all') : sexLabel(s))}</button>`).join('')}
       </div>
-      <select id="status" aria-label="Filter by status">
-        <option value="all">All statuses</option>
-        ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${f.status === k ? ' selected' : ''}>${v}</option>`).join('')}
+      <select id="status" aria-label="${esc(t('list.statusAria'))}">
+        <option value="all">${t('list.allStatuses')}</option>
+        ${Object.keys(STATUS).map((k) => `<option value="${k}"${f.status === k ? ' selected' : ''}>${esc(statusLabel(k))}</option>`).join('')}
       </select>
     </div>
     <p class="count muted" id="count"></p>
     <ul class="bird-list" id="list"></ul>
-    <a class="fab" href="#/bird/new" aria-label="Add bird">+</a>`;
+    <a class="fab" href="#/bird/new" aria-label="${esc(t('list.add'))}">+</a>`;
 
   const draw = () => {
     const memo = new Map();
@@ -199,14 +252,15 @@ function renderList() {
         return hay.includes(q);
       })
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    $('#count').textContent = `${items.length} of ${state.birds.size} birds`;
+    $('#count').textContent = t('list.count', { n: items.length, total: state.birds.size });
     $('#list').innerHTML = items.length
       ? items.map((b) => birdCard(b, memo)).join('')
-      : `<li class="card empty"><p>No birds match.</p></li>`;
+      : `<li class="card empty"><p>${t('list.none')}</p></li>`;
   };
 
   install.bindBanner(view);
   $('#q').oninput = (e) => { f.q = e.target.value; draw(); };
+  $('#q').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
   $('#status').onchange = (e) => { f.status = e.target.value; draw(); };
   for (const chip of $$('.chip')) {
     chip.onclick = () => {
@@ -243,19 +297,20 @@ function renderDetail(b) {
   const f = ped.inbreeding(b.id);
   const kids = offspringOf(b.id);
   const male = SEX[b.sex]?.male;
+  const age = ageLabel(b.hatchDate);
   const facts = [
-    ['Hatched', b.hatchDate ? `${formatDate(b.hatchDate)}${ageLabel(b.hatchDate) ? ` (${ageLabel(b.hatchDate)})` : ''}` : ''],
-    ['Wingband', b.wingband],
-    ['Legband', b.legband],
-    ['Feather color', b.color],
-    ['Leg color', b.legColor],
-    ['Comb', b.comb],
-    ['Breeder / source', b.breeder],
+    [t('f.hatched'), b.hatchDate ? `${formatDate(b.hatchDate)}${age ? ` (${age})` : ''}` : ''],
+    [t('f.wingband'), b.wingband],
+    [t('f.legband'), b.legband],
+    [t('f.color'), b.color],
+    [t('f.legColor'), b.legColor],
+    [t('f.comb'), b.comb],
+    [t('f.breeder'), b.breeder],
   ].filter(([, v]) => v);
 
   view.innerHTML = `
     <section class="hero">
-      ${b.photo ? `<img class="hero-photo" src="${esc(b.photo)}" alt="Photo of ${esc(displayName(b))}">` : `<div class="hero-photo placeholder" aria-hidden="true">${noPhotoSvg}</div>`}
+      ${b.photo ? `<img class="hero-photo" src="${esc(b.photo)}" alt="${esc(t('photo.of', { name: displayName(b) }))}">` : `<div class="hero-photo placeholder" aria-hidden="true">${noPhotoSvg}</div>`}
       <div>
         <h2>${esc(displayName(b))}</h2>
         <div class="badges">${sexBadge(b)}${statusBadge(b)}</div>
@@ -264,38 +319,38 @@ function renderDetail(b) {
     </section>
 
     <section class="card">
-      <h3>Bloodline</h3>
+      <h3>${t('sec.bloodline')}</h3>
       ${compBars(comp)}
-      <p class="muted small">${b.compositionMode === 'auto' ? 'Calculated from sire and dam.' : 'Entered manually (foundation bird).'}</p>
+      <p class="muted small">${b.compositionMode === 'auto' ? t('comp.auto') : t('comp.manual')}</p>
     </section>
 
     <section class="card">
-      <h3>Inbreeding</h3>
-      <p class="big">${pct(f)} <span class="muted small">${esc(G.inbreedingLabel(f))}</span></p>
-      <p class="muted small">Based on the ancestors recorded in Derby. Missing ancestors count as unrelated.</p>
+      <h3>${t('sec.inbreeding')}</h3>
+      <p class="big">${pct(f)} <span class="muted small">${esc(inbreedingText(f))}</span></p>
+      <p class="muted small">${t('inb.note')}</p>
     </section>
 
     <section class="card">
-      <h3>Pedigree</h3>
+      <h3>${t('sec.pedigree')}</h3>
       ${pedigreeGrid(b.id, ped)}
     </section>
 
-    ${facts.length ? `<section class="card"><h3>Details</h3><dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></section>` : ''}
+    ${facts.length ? `<section class="card"><h3>${t('sec.details')}</h3><dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></section>` : ''}
 
-    ${b.notes ? `<section class="card"><h3>Notes</h3><p class="notes">${esc(b.notes)}</p></section>` : ''}
+    ${b.notes ? `<section class="card"><h3>${t('sec.notes')}</h3><p class="notes">${esc(b.notes)}</p></section>` : ''}
 
     <section class="card">
-      <div class="row-between"><h3>Offspring (${kids.length})</h3>
-        ${SEX[b.sex] ? `<a class="btn small" href="#/bird/new?${male ? 'sire' : 'dam'}=${encodeURIComponent(b.id)}">+ Add offspring</a>` : ''}
+      <div class="row-between"><h3>${t('sec.offspring', { n: kids.length })}</h3>
+        ${SEX[b.sex] ? `<a class="btn small" href="#/bird/new?${male ? 'sire' : 'dam'}=${encodeURIComponent(b.id)}">${t('off.add')}</a>` : ''}
       </div>
-      ${kids.length ? `<ul class="bird-list compact">${kids.map((k) => birdCard(k)).join('')}</ul>` : '<p class="muted">No offspring recorded.</p>'}
+      ${kids.length ? `<ul class="bird-list compact">${kids.map((k) => birdCard(k)).join('')}</ul>` : `<p class="muted">${t('off.none')}</p>`}
     </section>
 
     <div class="actions">
-      <a class="btn primary" href="#/bird/${esc(b.id)}/edit">Edit</a>
-      <a class="btn" href="#/mating?${male ? 'sire' : 'dam'}=${encodeURIComponent(b.id)}">Test mating</a>
-      <button class="btn" id="share">Share pedigree</button>
-      <button class="btn danger" id="delete">Delete</button>
+      <a class="btn primary" href="#/bird/${esc(b.id)}/edit">${t('btn.edit')}</a>
+      <a class="btn" href="#/mating?${male ? 'sire' : 'dam'}=${encodeURIComponent(b.id)}">${t('btn.testMating')}</a>
+      <button class="btn" id="share">${t('btn.share')}</button>
+      <button class="btn danger" id="delete">${t('btn.delete')}</button>
     </div>`;
 
   $('#share').onclick = () => shareBird(b);
@@ -304,17 +359,17 @@ function renderDetail(b) {
 
 function compBars(comp) {
   const entries = G.sortedEntries(comp);
-  if (!entries.length) return '<p class="muted">Not recorded yet. Edit this bird to add its bloodline.</p>';
+  if (!entries.length) return `<p class="muted">${t('comp.empty')}</p>`;
   return `<ul class="bars">${entries
     .map(([k, v]) => `<li class="${k === G.UNKNOWN ? 'unknown' : ''}">
-      <div class="bar-label"><span>${esc(k)}</span><span>${G.formatShare(v)} <span class="muted">· ${pct(v)}</span></span></div>
+      <div class="bar-label"><span>${esc(lineName(k))}</span><span>${shareText(v)} <span class="muted">· ${pct(v)}</span></span></div>
       <div class="bar"><span style="width:${(v * 100).toFixed(2)}%"></span></div></li>`)
     .join('')}</ul>`;
 }
 
 function pedigreeGrid(id, ped) {
   const gens = ped.ancestorsByGeneration(id, 3);
-  const titles = ['Parents', 'Grandparents', 'Great-grandparents'];
+  const titles = [t('ped.parents'), t('ped.grand'), t('ped.great')];
   let cells = '';
   gens.forEach((ids, g) => {
     const span = 8 / ids.length;
@@ -322,9 +377,9 @@ function pedigreeGrid(id, ped) {
       const role = i % 2 === 0 ? 'sire' : 'dam';
       const a = aid ? state.birds.get(aid) : null;
       const style = `grid-column:${g + 1};grid-row:${i * span + 1} / span ${span}`;
-      const label = g === 0 ? (role === 'sire' ? 'Sire' : 'Dam') : '';
+      const label = g === 0 ? t(role === 'sire' ? 'ped.sire' : 'ped.dam') : '';
       if (!a) {
-        cells += `<div class="pcell ${role} unknown" style="${style}">${label ? `<small>${label}</small>` : ''}<span>Unknown</span></div>`;
+        cells += `<div class="pcell ${role} unknown" style="${style}">${label ? `<small>${label}</small>` : ''}<span>${t('ped.unknown')}</span></div>`;
       } else {
         const comp = G.effectiveComposition(state.birds, a.id);
         cells += `<a class="pcell ${role}" style="${style}" href="#/bird/${esc(a.id)}">
@@ -335,12 +390,12 @@ function pedigreeGrid(id, ped) {
       }
     });
   });
-  return `<div class="pedigree-scroll"><div class="pedigree-head">${titles.map((t) => `<span>${t}</span>`).join('')}</div><div class="pedigree">${cells}</div></div>`;
+  return `<div class="pedigree-scroll"><div class="pedigree-head">${titles.map((x) => `<span>${x}</span>`).join('')}</div><div class="pedigree">${cells}</div></div>`;
 }
 
 async function deleteBirdFlow(b, kids) {
-  const extra = kids.length ? `\n\n${kids.length} offspring will keep their records but lose this parent link.` : '';
-  if (!confirm(`Delete ${displayName(b)}? This cannot be undone.${extra}`)) return;
+  const extra = kids.length ? `\n\n${t('del.kids', { n: kids.length })}` : '';
+  if (!confirm(`${t('del.confirm', { name: displayName(b) })}${extra}`)) return;
   const now = Date.now();
   const changed = [];
   for (const k of kids) {
@@ -358,7 +413,7 @@ async function deleteBirdFlow(b, kids) {
   await db.deleteBird(b.id);
   for (const c of changed) state.birds.set(c.id, c);
   state.birds.delete(b.id);
-  toast('Bird deleted');
+  toast(t('del.done'));
   location.hash = '#/';
 }
 
@@ -377,7 +432,7 @@ function renderForm(existing, query) {
         composition: {},
         compositionMode: query.get('sire') || query.get('dam') ? 'auto' : 'manual',
       };
-  setHeader(isNew ? 'Add bird' : `Edit ${displayName(b)}`, isNew ? '#/' : `#/bird/${b.id}`);
+  setHeader(isNew ? t('form.add') : t('form.edit', { name: displayName(b) }), isNew ? '#/' : `#/bird/${b.id}`);
 
   const ped = pedigree();
   // A bird cannot be its own parent, nor can one of its descendants.
@@ -395,69 +450,69 @@ function renderForm(existing, query) {
         <div class="photo-pick">
           <div id="photo-preview">${thumb(b, 'photo-thumb')}</div>
           <div>
-            <label class="btn small" for="photo">${b.photo ? 'Change photo' : 'Add photo'}</label>
+            <label class="btn small" for="photo">${b.photo ? t('photo.change') : t('photo.add')}</label>
             <input type="file" id="photo" accept="image/*" hidden>
-            <button type="button" class="btn small link" id="photo-remove"${b.photo ? '' : ' hidden'}>Remove</button>
+            <button type="button" class="btn small link" id="photo-remove"${b.photo ? '' : ' hidden'}>${t('photo.remove')}</button>
           </div>
         </div>
-        <label>Name <input name="name" value="${esc(b.name)}" placeholder="e.g. Red Sweater #12" autocomplete="off"></label>
+        <label>${t('f.name')} <input name="name" value="${esc(b.name)}" placeholder="${esc(t('f.namePh'))}" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
         <div class="two">
-          <label>Wingband <input name="wingband" value="${esc(b.wingband)}" autocomplete="off"></label>
-          <label>Legband <input name="legband" value="${esc(b.legband)}" autocomplete="off"></label>
+          <label>${t('f.wingband')} <input name="wingband" value="${esc(b.wingband)}" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="next"></label>
+          <label>${t('f.legband')} <input name="legband" value="${esc(b.legband)}" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="next"></label>
         </div>
         <fieldset class="seg">
-          <legend>Sex</legend>
-          ${Object.entries(SEX).map(([k, v]) => `<label><input type="radio" name="sex" value="${k}"${b.sex === k ? ' checked' : ''}><span>${v.label}</span></label>`).join('')}
+          <legend>${t('f.sex')}</legend>
+          ${Object.keys(SEX).map((k) => `<label><input type="radio" name="sex" value="${k}"${b.sex === k ? ' checked' : ''}><span>${esc(sexLabel(k))}</span></label>`).join('')}
         </fieldset>
         <div class="two">
-          <label>Hatch date <input type="date" name="hatchDate" value="${esc(b.hatchDate)}"></label>
-          <label>Status <select name="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${b.status === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+          <label>${t('f.hatchDate')} <input type="date" name="hatchDate" value="${esc(b.hatchDate)}"></label>
+          <label>${t('f.status')} <select name="status">${Object.keys(STATUS).map((k) => `<option value="${k}"${b.status === k ? ' selected' : ''}>${esc(statusLabel(k))}</option>`).join('')}</select></label>
         </div>
       </section>
 
       <section class="card">
-        <h3>Parents</h3>
-        <label>Sire (father)
-          <select name="sireId"><option value="">Unknown / not recorded</option>${males.map((x) => opt(x, b.sireId)).join('')}</select>
+        <h3>${t('sec.parents')}</h3>
+        <label>${t('f.sire')}
+          <select name="sireId"><option value="">${t('f.parentUnknown')}</option>${males.map((x) => opt(x, b.sireId)).join('')}</select>
         </label>
-        <label>Dam (mother)
-          <select name="damId"><option value="">Unknown / not recorded</option>${females.map((x) => opt(x, b.damId)).join('')}</select>
+        <label>${t('f.dam')}
+          <select name="damId"><option value="">${t('f.parentUnknown')}</option>${females.map((x) => opt(x, b.damId)).join('')}</select>
         </label>
-        <p class="muted small">Parent not listed? Add it first as a bird (use status “Reference only” if you don't own it).</p>
+        <p class="muted small">${t('f.parentHint')}</p>
       </section>
 
       <section class="card">
-        <h3>Bloodline</h3>
+        <h3>${t('sec.bloodline')}</h3>
         <fieldset class="seg">
-          <legend class="sr-only">How to set bloodline</legend>
-          <label><input type="radio" name="compositionMode" value="auto"${b.compositionMode === 'auto' ? ' checked' : ''}><span>From parents</span></label>
-          <label><input type="radio" name="compositionMode" value="manual"${b.compositionMode !== 'auto' ? ' checked' : ''}><span>Enter manually</span></label>
+          <legend class="sr-only">${t('comp.how')}</legend>
+          <label><input type="radio" name="compositionMode" value="auto"${b.compositionMode === 'auto' ? ' checked' : ''}><span>${t('comp.modeAuto')}</span></label>
+          <label><input type="radio" name="compositionMode" value="manual"${b.compositionMode !== 'auto' ? ' checked' : ''}><span>${t('comp.modeManual')}</span></label>
         </fieldset>
         <div id="comp-auto"></div>
         <div id="comp-manual">
-          <p class="muted small">For foundation birds. Enter shares like <b>1/2</b>, <b>3/8</b> or <b>25%</b>. Anything left over is counted as Unknown.</p>
+          <p class="muted small">${t('comp.manualHint')}</p>
           <div id="comp-rows"></div>
-          <button type="button" class="btn small" id="add-line">+ Add line</button>
+          <button type="button" class="btn small" id="add-line">${t('comp.addLine')}</button>
           <p id="comp-total" class="small"></p>
         </div>
       </section>
 
       <section class="card">
-        <h3>Details</h3>
+        <h3>${t('sec.details')}</h3>
         <div class="two">
-          <label>Feather color <input name="color" list="dl-colors" value="${esc(b.color)}" autocomplete="off"></label>
-          <label>Leg color <input name="legColor" list="dl-legs" value="${esc(b.legColor)}" autocomplete="off"></label>
+          <label>${t('f.color')} <input name="color" list="dl-colors" value="${esc(b.color)}" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+          <label>${t('f.legColor')} <input name="legColor" list="dl-legs" value="${esc(b.legColor)}" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
         </div>
-        <label>Comb <input name="comb" list="dl-combs" value="${esc(b.comb)}" autocomplete="off"></label>
-        <label>Breeder / source <input name="breeder" value="${esc(b.breeder)}" placeholder="Farm or breeder name" autocomplete="off"></label>
-        <label>Notes <textarea name="notes" rows="4" placeholder="Fighting style, temperament, awards…">${esc(b.notes)}</textarea></label>
+        <label>${t('f.comb')} <input name="comb" list="dl-combs" value="${esc(b.comb)}" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+        <label>${t('f.breeder')} <input name="breeder" value="${esc(b.breeder)}" placeholder="${esc(t('f.breederPh'))}" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+        <label>${t('f.notes')} <textarea name="notes" rows="4" autocapitalize="sentences" placeholder="${esc(t('f.notesPh'))}">${esc(b.notes)}</textarea></label>
       </section>
 
       ${datalist('dl-lines', allLines())}${datalist('dl-colors', FEATHER_COLORS)}${datalist('dl-legs', LEG_COLORS)}${datalist('dl-combs', COMBS)}
       <p id="form-error" class="error" role="alert"></p>
       <div class="actions sticky">
-        <a class="btn" href="${isNew ? '#/' : `#/bird/${esc(b.id)}`}">Cancel</a>
-        <button class="btn primary" type="submit">${isNew ? 'Save bird' : 'Save changes'}</button>
+        <a class="btn" href="${isNew ? '#/' : `#/bird/${esc(b.id)}`}">${t('btn.cancel')}</a>
+        <button class="btn primary" type="submit">${isNew ? t('btn.save') : t('btn.saveChanges')}</button>
       </div>
     </form>`;
 
@@ -473,7 +528,7 @@ function renderForm(existing, query) {
       $('#photo-preview').innerHTML = `<img class="photo-thumb" src="${esc(photo)}" alt="">`;
       $('#photo-remove').hidden = false;
     } catch {
-      toast('Could not read that photo');
+      toast(t('photo.error'));
     }
   };
   $('#photo-remove').onclick = () => {
@@ -484,15 +539,23 @@ function renderForm(existing, query) {
 
   // Bloodline editor
   const rowsEl = $('#comp-rows');
-  const addRow = (line = '', share = '') => {
+  const addRow = (line = '', share = null) => {
     const row = document.createElement('div');
     row.className = 'comp-row';
-    row.innerHTML = `<input class="line-name" list="dl-lines" placeholder="Bloodline" value="${esc(line)}" aria-label="Bloodline name" autocomplete="off">
-      <input class="line-share" inputmode="decimal" placeholder="1/2" value="${esc(share)}" aria-label="Share">
-      <button type="button" class="icon-btn" aria-label="Remove line">×</button>`;
+    const opts = [...SHARE_OPTIONS];
+    if (share && !opts.some((o) => Math.abs(o - share) < 1e-9)) opts.push(share);
+    opts.sort((x, y) => y - x);
+    row.innerHTML = `<input class="line-name" list="dl-lines" placeholder="${esc(t('comp.linePh'))}" value="${esc(line)}" aria-label="${esc(t('comp.lineAria'))}" autocomplete="off" autocapitalize="words" enterkeyhint="done">
+      <select class="line-share" aria-label="${esc(t('comp.shareAria'))}">
+        <option value="">${t('comp.pickShare')}</option>
+        ${opts.map((o) => `<option value="${o}"${share && Math.abs(o - share) < 1e-9 ? ' selected' : ''}>${shareText(o)}</option>`).join('')}
+      </select>
+      <button type="button" class="icon-btn" aria-label="${esc(t('comp.removeAria'))}">×</button>`;
     row.querySelector('button').onclick = () => { row.remove(); updateTotal(); };
-    row.querySelectorAll('input').forEach((i) => (i.oninput = updateTotal));
+    row.querySelector('.line-name').oninput = updateTotal;
+    row.querySelector('.line-share').onchange = updateTotal;
     rowsEl.append(row);
+    return row;
   };
   const readRows = () => {
     const comp = {};
@@ -501,7 +564,7 @@ function renderForm(existing, query) {
       const name = row.querySelector('.line-name').value.trim();
       const raw = row.querySelector('.line-share').value.trim();
       if (!name && !raw) continue;
-      const v = G.parseShare(raw);
+      const v = Number(raw);
       if (!name || !(v > 0) || v > 1) { bad = true; continue; }
       comp[name] = (comp[name] || 0) + v;
     }
@@ -512,14 +575,15 @@ function renderForm(existing, query) {
     const total = Object.values(comp).reduce((a, v) => a + v, 0);
     const el = $('#comp-total');
     el.className = 'small';
-    if (bad) { el.textContent = 'Check each row has a line name and a share like 1/2 or 25%.'; el.classList.add('error'); }
-    else if (total > 1 + 1e-6) { el.textContent = `Total is ${pct(total)}, more than 100%.`; el.classList.add('error'); }
-    else if (total > 0 && total < 1 - 1e-6) { el.textContent = `Total ${pct(total)} · ${G.formatShare(1 - total)} will be Unknown`; el.classList.add('muted'); }
-    else el.textContent = total ? 'Total 100% ✓' : '';
+    if (bad) { el.textContent = t('comp.badRow'); el.classList.add('error'); }
+    else if (total > 1 + 1e-6) { el.textContent = t('comp.over', { p: pct(total) }); el.classList.add('error'); }
+    else if (total > 0 && total < 1 - 1e-6) { el.textContent = t('comp.partial', { p: pct(total), rest: G.formatShare(1 - total) }); el.classList.add('muted'); }
+    else el.textContent = total ? t('comp.full') : '';
   };
-  manualRows.forEach(([k, v]) => addRow(k, G.formatShare(v) === 'Full' ? '1' : G.formatShare(v)));
+  manualRows.forEach(([k, v]) => addRow(k, v));
   if (!manualRows.length) addRow();
-  $('#add-line').onclick = () => addRow();
+  $('#add-line').onclick = () => addRow().querySelector('.line-name').focus();
+  enableKeyboardFlow(form);
   updateTotal();
 
   const updateMode = () => {
@@ -530,7 +594,7 @@ function renderForm(existing, query) {
       const s = form.sireId.value || null;
       const d = form.damId.value || null;
       if (!s && !d) {
-        $('#comp-auto').innerHTML = '<p class="muted">Choose a sire and/or dam above to calculate the bloodline.</p>';
+        $('#comp-auto').innerHTML = `<p class="muted">${t('comp.pickParents')}</p>`;
       } else {
         const memo = new Map();
         const comp = G.crossCompositions(
@@ -553,20 +617,20 @@ function renderForm(existing, query) {
     const val = (n) => form[n].value.trim();
     const mode = form.compositionMode.value;
     const sex = form.sex.value;
-    if (!val('name') && !val('wingband') && !val('legband')) return fail('Give the bird a name, wingband or legband.');
-    if (!sex) return fail('Choose the sex (cock, stag, hen or pullet).');
+    if (!val('name') && !val('wingband') && !val('legband')) return fail(t('err.identity'));
+    if (!sex) return fail(t('err.sex'));
     let composition = {};
     if (mode === 'manual') {
       const { comp, bad } = readRows();
-      if (bad) return fail('Fix the bloodline rows: each needs a line name and a share like 1/2.');
-      if (Object.values(comp).reduce((a, v) => a + v, 0) > 1 + 1e-6) return fail('Bloodline shares add up to more than 100%.');
+      if (bad) return fail(t('err.rows'));
+      if (Object.values(comp).reduce((a, v) => a + v, 0) > 1 + 1e-6) return fail(t('err.over'));
       composition = G.cleanComposition(comp);
     } else if (existing) {
       composition = existing.composition || {};
     }
     const sireId = val('sireId') || null;
     const damId = val('damId') || null;
-    if (mode === 'auto' && !sireId && !damId) return fail('Pick a sire or dam, or switch bloodline to “Enter manually”.');
+    if (mode === 'auto' && !sireId && !damId) return fail(t('err.noParents'));
 
     const now = Date.now();
     const record = {
@@ -593,11 +657,11 @@ function renderForm(existing, query) {
     try {
       await db.putBird(record);
     } catch {
-      return fail('Could not save. Your phone may be out of storage.');
+      return fail(t('err.save'));
     }
     state.birds.set(record.id, record);
     requestPersistence();
-    toast(isNew ? 'Bird saved' : 'Changes saved');
+    toast(isNew ? t('saved.new') : t('saved.edit'));
     location.hash = `#/bird/${record.id}`;
 
     function fail(msg) {
@@ -605,6 +669,24 @@ function renderForm(existing, query) {
       err.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
+}
+
+/**
+ * Phone-keyboard friendly forms: the keyboard's Enter/Next key moves to the
+ * next text field instead of submitting, and the last one closes the keyboard.
+ * Saving is always an explicit tap on the Save button.
+ */
+const TEXT_FIELD = 'input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]):not([type=date]), textarea';
+
+function enableKeyboardFlow(form) {
+  form.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || !e.target.matches('input') || !e.target.matches(TEXT_FIELD)) return;
+    e.preventDefault();
+    const fields = [...form.querySelectorAll(TEXT_FIELD)].filter((el) => !el.disabled && el.offsetParent !== null);
+    const next = fields[fields.indexOf(e.target) + 1];
+    if (next && e.target.getAttribute('enterkeyhint') !== 'done') next.focus();
+    else e.target.blur();
+  });
 }
 
 function resizeImage(file, max) {
@@ -627,28 +709,30 @@ function resizeImage(file, max) {
 
 // ---------- test mating ----------
 
-function renderMating(query) {
-  setHeader('Test mating', null);
+function renderMating(query, keepPicks = false) {
+  setHeader(t('mating.title'), null);
   const all = [...state.birds.values()].sort((x, y) => displayName(x).localeCompare(displayName(y)));
   const males = all.filter((x) => SEX[x.sex]?.male);
   const females = all.filter((x) => SEX[x.sex] && !SEX[x.sex].male);
   const opt = (x, sel) => `<option value="${esc(x.id)}"${x.id === sel ? ' selected' : ''}>${esc(displayName(x))}</option>`;
-  const sireSel = query.get('sire');
-  const damSel = query.get('dam');
+  // After a language switch, keep the pair the user already picked.
+  const sireSel = (keepPicks && $('#m-sire')?.value) || query.get('sire');
+  const damSel = (keepPicks && $('#m-dam')?.value) || query.get('dam');
 
   view.innerHTML = `
-    <section class="card">
-      <p class="muted">Pick a pair to see what their offspring's bloodline and inbreeding would be before you breed them.</p>
-      <label>Sire (cock or stag)
-        <select id="m-sire"><option value="">Choose…</option>${males.map((x) => opt(x, sireSel)).join('')}</select>
+    <section class="card form">
+      <p class="muted">${t('mating.intro')}</p>
+      <label>${t('mating.sire')}
+        <select id="m-sire"><option value="">${t('mating.choose')}</option>${males.map((x) => opt(x, sireSel)).join('')}</select>
       </label>
-      <label>Dam (hen or pullet)
-        <select id="m-dam"><option value="">Choose…</option>${females.map((x) => opt(x, damSel)).join('')}</select>
+      <label>${t('mating.dam')}
+        <select id="m-dam"><option value="">${t('mating.choose')}</option>${females.map((x) => opt(x, damSel)).join('')}</select>
       </label>
-      ${!males.length || !females.length ? '<p class="muted small">Add at least one male and one female bird to use this.</p>' : ''}
+      ${!males.length || !females.length ? `<p class="muted small">${t('mating.need')}</p>` : ''}
     </section>
     <div id="m-result"></div>`;
 
+  const gen = (n) => (n <= 3 ? t(`gen.${n}`) : t('gen.n', { n: n - 2 }));
   const draw = () => {
     const s = $('#m-sire').value;
     const d = $('#m-dam').value;
@@ -659,23 +743,23 @@ function renderMating(query) {
     const comp = G.crossCompositions(G.effectiveComposition(state.birds, s, memo), G.effectiveComposition(state.birds, d, memo));
     const f = ped.kinship(s, d);
     const common = ped.commonAncestors(s, d);
-    const gen = (n) => (n === 1 ? 'parent' : n === 2 ? 'grandparent' : n === 3 ? 'great-grandparent' : `${n - 2}× great-grandparent`);
     out.innerHTML = `
       <section class="card">
-        <h3>Offspring bloodline</h3>
+        <h3>${t('mating.blood')}</h3>
         ${compBars(comp)}
       </section>
       <section class="card">
-        <h3>Offspring inbreeding</h3>
-        <p class="big">${pct(f)} <span class="muted small">${esc(G.inbreedingLabel(f))}</span></p>
+        <h3>${t('mating.inb')}</h3>
+        <p class="big">${pct(f)} <span class="muted small">${esc(inbreedingText(f))}</span></p>
         ${common.length
-          ? `<p class="small">Shared ancestors:</p><ul class="plain">${common.slice(0, 8).map((c) => {
+          ? `<p class="small">${t('mating.shared')}</p><ul class="plain">${common.slice(0, 8).map((c) => {
               const a = state.birds.get(c.id);
-              return `<li><a href="#/bird/${esc(c.id)}">${esc(displayName(a))}</a> <span class="muted small">${c.a === 0 ? 'is the sire' : `sire's ${gen(c.a)}`}, ${c.b === 0 ? 'is the dam' : `dam's ${gen(c.b)}`}</span></li>`;
+              const rel = `${c.a === 0 ? t('rel.isSire') : t('rel.sireOf', { g: gen(c.a) })}, ${c.b === 0 ? t('rel.isDam') : t('rel.damOf', { g: gen(c.b) })}`;
+              return `<li><a href="#/bird/${esc(c.id)}">${esc(displayName(a))}</a> <span class="muted small">${esc(rel)}</span></li>`;
             }).join('')}</ul>`
-          : '<p class="muted small">No shared ancestors recorded. This is an outcross as far as Derby knows.</p>'}
+          : `<p class="muted small">${t('mating.noShared')}</p>`}
       </section>
-      <div class="actions"><a class="btn primary" href="#/bird/new?sire=${encodeURIComponent(s)}&dam=${encodeURIComponent(d)}">Record a chick from this pair</a></div>`;
+      <div class="actions"><a class="btn primary" style="grid-column:1/-1" href="#/bird/new?sire=${encodeURIComponent(s)}&dam=${encodeURIComponent(d)}">${t('mating.record')}</a></div>`;
   };
   $('#m-sire').onchange = draw;
   $('#m-dam').onchange = draw;
@@ -685,7 +769,7 @@ function renderMating(query) {
 // ---------- bloodlines ----------
 
 function renderLines() {
-  setHeader('Bloodlines', null);
+  setHeader(t('lines.title'), null);
   const memo = new Map();
   const counts = new Map();
   for (const b of state.birds.values()) {
@@ -700,18 +784,18 @@ function renderLines() {
   view.innerHTML = `
     <section class="card">
       <form id="line-form" class="inline-form">
-        <input id="line-name" placeholder="Add your own bloodline" aria-label="New bloodline name" autocomplete="off">
-        <button class="btn primary" type="submit">Add</button>
+        <input id="line-name" autocapitalize="words" enterkeyhint="done" placeholder="${esc(t('lines.addPh'))}" aria-label="${esc(t('lines.addAria'))}" autocomplete="off">
+        <button class="btn primary" type="submit">${t('lines.add')}</button>
       </form>
-      <p class="muted small">These appear as suggestions when you enter a bird's bloodline. Tap a line to see birds carrying it.</p>
+      <p class="muted small">${t('lines.hint')}</p>
     </section>
     <ul class="line-list">
       ${names.map((n) => {
         const custom = state.customLines.includes(n);
         const c = counts.get(n) || 0;
         return `<li>
-          <button type="button" class="line-item" data-line="${esc(n)}"><span>${esc(n)}${custom ? ' <span class="badge">yours</span>' : ''}</span><span class="muted">${c} bird${c === 1 ? '' : 's'}</span></button>
-          ${custom ? `<button type="button" class="icon-btn" data-remove="${esc(n)}" aria-label="Remove ${esc(n)}">×</button>` : ''}
+          <button type="button" class="line-item" data-line="${esc(n)}"><span>${esc(n)}${custom ? ` <span class="badge">${t('lines.yours')}</span>` : ''}</span><span class="muted">${t('lines.count', { n: c })}</span></button>
+          ${custom ? `<button type="button" class="icon-btn" data-remove="${esc(n)}" aria-label="${esc(t('lines.remove', { name: n }))}">×</button>` : ''}
         </li>`;
       }).join('')}
     </ul>`;
@@ -720,10 +804,10 @@ function renderLines() {
     e.preventDefault();
     const name = $('#line-name').value.trim();
     if (!name) return;
-    if (allLines().some((l) => l.toLowerCase() === name.toLowerCase())) return toast('That line is already listed');
+    if (allLines().some((l) => l.toLowerCase() === name.toLowerCase())) return toast(t('lines.exists'));
     state.customLines.push(name);
     await db.setMeta('customLines', state.customLines);
-    toast(`${name} added`);
+    toast(t('lines.added', { name }));
     renderLines();
   };
   for (const btn of $$('[data-line]')) {
@@ -741,49 +825,49 @@ function renderLines() {
   }
 }
 
-// ---------- backup & sharing ----------
+// ---------- more: install, backup & sharing, about ----------
 
 function renderMore() {
-  setHeader('More', null);
+  setHeader(t('more.title'), null);
   const installed = install.isStandalone();
   view.innerHTML = `
     <section class="card">
-      <h3>Install app</h3>
+      <h3>${t('install.title')}</h3>
       ${installed
-        ? '<p class="ok">✓ Derby is installed on this device.</p>'
-        : `<p class="muted small">Add Derby to your home screen so it opens like a normal app and works without signal.</p>
-           <button class="btn primary block" id="install">${install.isIOS() ? 'How to install on iPhone' : 'Install Derby'}</button>`}
+        ? `<p class="ok">${t('install.done')}</p>`
+        : `<p class="muted small">${t('install.hint')}</p>
+           <button class="btn primary block" id="install">${install.isIOS() ? t('install.ios') : t('install.btn')}</button>`}
     </section>
     <section class="card">
-      <h3>Backup</h3>
-      <p>${state.birds.size} bird${state.birds.size === 1 ? '' : 's'} saved on this phone. Records are not uploaded anywhere, so make a backup regularly. If you lose your phone or clear the browser, records without a backup are gone.</p>
-      <button class="btn primary block" id="export">Save backup file</button>
+      <h3>${t('backup.title')}</h3>
+      <p>${t('backup.text', { n: state.birds.size })}</p>
+      <button class="btn primary block" id="export">${t('backup.save')}</button>
     </section>
     <section class="card">
-      <h3>Restore or import</h3>
-      <p class="muted small">Open a Derby backup, or a pedigree a friend shared with you. Birds you already have are only replaced if the file's copy is newer.</p>
-      <label class="btn block" for="import">Open file…</label>
+      <h3>${t('restore.title')}</h3>
+      <p class="muted small">${t('restore.text')}</p>
+      <label class="btn block" for="import">${t('restore.open')}</label>
       <input type="file" id="import" accept=".json,application/json" hidden>
     </section>
     <section class="card">
-      <h3>Sharing birds with friends</h3>
-      <p class="muted small">Open a bird and tap <b>Share pedigree</b>. Derby sends that bird and all its recorded ancestors as a file (by Messenger, Viber, email…). Your friend opens it here under <b>Open file</b>.</p>
+      <h3>${t('share.title')}</h3>
+      <p class="muted small">${t('share.text')}</p>
     </section>
     <section class="card">
-      <h3>Danger zone</h3>
-      <button class="btn danger block" id="wipe">Delete all birds on this phone</button>
+      <h3>${t('danger.title')}</h3>
+      <button class="btn danger block" id="wipe">${t('danger.wipe')}</button>
     </section>
     <section class="card about">
-      <h3>About</h3>
+      <h3>${t('about.title')}</h3>
       <dl class="facts">
-        <dt>App</dt><dd>Derby: gamefowl pedigree</dd>
-        <dt>Version</dt><dd id="app-version">v${APP_VERSION}</dd>
-        <dt>Birds</dt><dd>${state.birds.size}</dd>
+        <dt>${t('about.app')}</dt><dd>${t('about.appName')}</dd>
+        <dt>${t('about.version')}</dt><dd id="app-version">v${APP_VERSION}</dd>
+        <dt>${t('about.lang')}</dt><dd>${t('lang.name')}</dd>
+        <dt>${t('about.birds')}</dt><dd>${state.birds.size}</dd>
       </dl>
     </section>`;
 
   $('#install')?.addEventListener('click', install.startInstall);
-
   $('#export').onclick = () => {
     const stamp = new Date().toISOString().slice(0, 10);
     deliverJson(buildExport([...state.birds.values()]), `derby-backup-${stamp}.json`, 'Derby backup');
@@ -795,19 +879,19 @@ function renderMore() {
     try {
       const data = JSON.parse(await file.text());
       const r = await importData(data);
-      toast(`Imported: ${r.added} new, ${r.updated} updated, ${r.skipped} unchanged`);
+      toast(t('import.done', { a: r.added, u: r.updated, s: r.skipped }));
       renderMore();
-    } catch (err) {
-      toast(err.message || 'That file is not a Derby backup');
+    } catch {
+      toast(t('import.bad'));
     }
   };
   $('#wipe').onclick = async () => {
-    if (!state.birds.size) return toast('No birds to delete');
-    if (!confirm(`Delete all ${state.birds.size} birds from this phone? Save a backup first if you may need them.`)) return;
-    if (prompt('Type DELETE to confirm') !== 'DELETE') return toast('Nothing was deleted');
+    if (!state.birds.size) return toast(t('wipe.none'));
+    if (!confirm(t('wipe.confirm', { n: state.birds.size }))) return;
+    if (prompt(t('wipe.type')) !== 'DELETE') return toast(t('wipe.cancelled'));
     await db.clearBirds();
     state.birds.clear();
-    toast('All birds deleted');
+    toast(t('wipe.done'));
     location.hash = '#/';
   };
 }
@@ -834,7 +918,7 @@ async function deliverJson(data, filename, title) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast(`Saved ${filename}`);
+  toast(t('file.saved', { f: filename }));
 }
 
 function shareBird(b) {
@@ -879,7 +963,7 @@ function sanitizeBird(raw) {
 }
 
 async function importData(data) {
-  if (!data || data.app !== 'derby' || !Array.isArray(data.birds)) throw new Error('That file is not a Derby backup');
+  if (!data || data.app !== 'derby' || !Array.isArray(data.birds)) throw new Error('not a Derby backup');
   let added = 0;
   let updated = 0;
   let skipped = 0;
@@ -925,7 +1009,7 @@ async function loadSampleData() {
   ];
   await db.putBirds(birds);
   for (const b of birds) state.birds.set(b.id, b);
-  toast('Sample birds added. Delete them any time.');
+  toast(t('toast.sample'));
   renderList();
 }
 
@@ -938,21 +1022,32 @@ function requestPersistence() {
   navigator.storage?.persist?.().catch(() => {});
 }
 
+function trackKeyboard() {
+  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  const isText = (el) => el?.matches?.(`${TEXT_FIELD}, select`);
+  document.addEventListener('focusin', (e) => { if (isText(e.target)) document.body.classList.add('typing'); });
+  document.addEventListener('focusout', () => {
+    setTimeout(() => { if (!isText(document.activeElement)) document.body.classList.remove('typing'); }, 50);
+  });
+}
+
 async function init() {
+  initLanguageSwitch();
+  trackKeyboard();
   try {
     const birds = await db.getAllBirds();
     for (const b of birds) state.birds.set(b.id, b);
     state.customLines = (await db.getMeta('customLines')) || [];
   } catch {
-    view.innerHTML = '<div class="card empty"><p>Derby could not open its storage. Private/incognito browsing may block it.</p></div>';
+    view.innerHTML = `<div class="card empty"><p>${t('storage.error')}</p></div>`;
     return;
   }
-  window.addEventListener('hashchange', route);
+  window.addEventListener('hashchange', () => route());
   route();
   install.onInstallChange(() => { if (parseHash().parts[0] === 'more') renderMore(); });
   try {
     const last = await db.getMeta('lastVersion');
-    if (last && last !== APP_VERSION) toast(`Derby updated to v${APP_VERSION}`);
+    if (last && last !== APP_VERSION) toast(t('toast.updated', { v: APP_VERSION }));
     if (last !== APP_VERSION) await db.setMeta('lastVersion', APP_VERSION);
   } catch { /* non-critical */ }
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

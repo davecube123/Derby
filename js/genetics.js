@@ -198,12 +198,3 @@ export function createPedigree(byId) {
 
   return { inbreeding, kinship, depth, ancestorsByGeneration, ancestorDistances, isAncestor, commonAncestors };
 }
-
-/** Plain-language label for an inbreeding / kinship level. */
-export function inbreedingLabel(f) {
-  if (f < 1e-6) return 'None recorded';
-  if (f <= 0.0625 + 1e-6) return 'Low (about first cousins or less)';
-  if (f <= 0.125 + 1e-6) return 'Moderate (about half-siblings)';
-  if (f <= 0.25 + 1e-6) return 'High (about full siblings or parent × offspring)';
-  return 'Very high (repeated close linebreeding)';
-}

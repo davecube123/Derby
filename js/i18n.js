@@ -1,0 +1,280 @@
+// English / Tagalog translations. Values are strings with {placeholders}
+// or functions of the variables (for plurals). HTML in values is intentional;
+// callers must escape any user data they pass in.
+
+const LANG_KEY = 'derby.lang';
+export const LANGS = { en: 'EN', tl: 'TL' };
+
+const en = {
+  'nav.birds': 'Birds', 'nav.mating': 'Mating', 'nav.lines': 'Bloodlines', 'nav.more': 'More',
+  'common.back': 'Back', 'lang.label': 'Language', 'lang.name': 'English',
+  'lang.deferred': 'Language will change when you leave this form.',
+
+  'sex.cock': 'Cock', 'sex.stag': 'Stag', 'sex.hen': 'Hen', 'sex.pullet': 'Pullet',
+  'status.brood': 'Brood stock', 'status.active': 'Active / battle', 'status.growing': 'Growing out',
+  'status.sold': 'Sold', 'status.deceased': 'Deceased', 'status.reference': 'Reference only',
+
+  'age.lt1': 'under 1 mo', 'age.y': '{n} yr', 'age.m': '{n} mo',
+  'comp.none': 'Bloodline not recorded',
+
+  'welcome.title': 'Welcome to Derby',
+  'welcome.intro': 'Keep the bloodline and pedigree of every cock, stag, hen and pullet on your farm.',
+  'welcome.step1': 'Start with your <strong>brood stock</strong> and enter their bloodlines (e.g. ½ Sweater, ½ Kelso).',
+  'welcome.step2': 'Add their offspring and pick the sire and dam. Derby works out the blood automatically.',
+  'welcome.step3': 'Use <strong>Mating</strong> to check bloodline and inbreeding before you breed a pair.',
+  'welcome.add': 'Add your first bird', 'welcome.sample': 'Try it with sample birds',
+  'welcome.privacy': 'Your records stay on this phone. Use More → Backup to save a copy or share birds with friends.',
+
+  'list.search': 'Search name, band, line, breeder…', 'list.searchAria': 'Search birds',
+  'list.sexAria': 'Filter by sex', 'list.statusAria': 'Filter by status',
+  'list.all': 'All', 'list.allStatuses': 'All statuses',
+  'list.count': '{n} of {total} birds', 'list.none': 'No birds match.', 'list.add': 'Add bird',
+
+  'notFound.title': 'Not found', 'notFound.text': 'That bird was not found. It may have been deleted.',
+  'notFound.back': 'Back to birds',
+
+  'sec.bloodline': 'Bloodline', 'sec.inbreeding': 'Inbreeding', 'sec.pedigree': 'Pedigree',
+  'sec.details': 'Details', 'sec.notes': 'Notes', 'sec.offspring': 'Offspring ({n})', 'sec.parents': 'Parents',
+  'comp.auto': 'Calculated from sire and dam.', 'comp.manual': 'Entered manually (foundation bird).',
+  'comp.empty': 'Not recorded yet. Edit this bird to add its bloodline.',
+  'inb.note': 'Based on the ancestors recorded in Derby. Missing ancestors count as unrelated.',
+  'inb.none': 'None recorded', 'inb.low': 'Low (about first cousins or less)',
+  'inb.moderate': 'Moderate (about half-siblings)', 'inb.high': 'High (about full siblings or parent × offspring)',
+  'inb.veryHigh': 'Very high (repeated close linebreeding)',
+  'ped.parents': 'Parents', 'ped.grand': 'Grandparents', 'ped.great': 'Great-grandparents',
+  'ped.sire': 'Sire', 'ped.dam': 'Dam', 'ped.unknown': 'Unknown',
+  'f.hatched': 'Hatched', 'f.wingband': 'Wingband', 'f.legband': 'Legband', 'f.color': 'Feather color',
+  'f.legColor': 'Leg color', 'f.comb': 'Comb', 'f.breeder': 'Breeder / source',
+  'off.add': '+ Add offspring', 'off.none': 'No offspring recorded.',
+  'btn.edit': 'Edit', 'btn.testMating': 'Test mating', 'btn.share': 'Share pedigree', 'btn.delete': 'Delete',
+  'btn.cancel': 'Cancel', 'btn.save': 'Save bird', 'btn.saveChanges': 'Save changes',
+  'photo.of': 'Photo of {name}',
+  'del.confirm': 'Delete {name}? This cannot be undone.',
+  'del.kids': (v) => `${v.n} offspring will keep their records but lose this parent link.`,
+  'del.done': 'Bird deleted',
+
+  'form.add': 'Add bird', 'form.edit': 'Edit {name}',
+  'photo.add': 'Add photo', 'photo.change': 'Change photo', 'photo.remove': 'Remove', 'photo.error': 'Could not read that photo',
+  'f.name': 'Name', 'f.namePh': 'e.g. Red Sweater #12', 'f.sex': 'Sex', 'f.hatchDate': 'Hatch date', 'f.status': 'Status',
+  'f.sire': 'Sire (father)', 'f.dam': 'Dam (mother)', 'f.parentUnknown': 'Unknown / not recorded',
+  'f.parentHint': 'Parent not listed? Add it first as a bird (use status “Reference only” if you don\'t own it).',
+  'f.breederPh': 'Farm or breeder name', 'f.notes': 'Notes', 'f.notesPh': 'Fighting style, temperament, awards…',
+  'comp.how': 'How to set bloodline', 'comp.modeAuto': 'From parents', 'comp.modeManual': 'Enter manually',
+  'comp.manualHint': 'For foundation birds. Type the line and pick its share (e.g. 1/2, 3/8). Anything left over is counted as Unknown.',
+  'comp.addLine': '+ Add line', 'comp.linePh': 'Bloodline', 'comp.lineAria': 'Bloodline name', 'comp.shareAria': 'Share',
+  'comp.removeAria': 'Remove line', 'comp.pickShare': 'Share…', 'share.full': 'Full',
+  'comp.badRow': 'Check each row has a line name and a share.',
+  'comp.over': 'Total is {p}, more than 100%.', 'comp.partial': 'Total {p} · {rest} will be Unknown',
+  'comp.full': 'Total 100% ✓', 'comp.pickParents': 'Choose a sire and/or dam above to calculate the bloodline.',
+  'err.identity': 'Give the bird a name, wingband or legband.',
+  'err.sex': 'Choose the sex (cock, stag, hen or pullet).',
+  'err.rows': 'Fix the bloodline rows: each needs a line name and a share like 1/2.',
+  'err.over': 'Bloodline shares add up to more than 100%.',
+  'err.noParents': 'Pick a sire or dam, or switch bloodline to “Enter manually”.',
+  'err.save': 'Could not save. Your phone may be out of storage.',
+  'saved.new': 'Bird saved', 'saved.edit': 'Changes saved',
+
+  'mating.title': 'Test mating',
+  'mating.intro': 'Pick a pair to see what their offspring\'s bloodline and inbreeding would be before you breed them.',
+  'mating.sire': 'Sire (cock or stag)', 'mating.dam': 'Dam (hen or pullet)', 'mating.choose': 'Choose…',
+  'mating.need': 'Add at least one male and one female bird to use this.',
+  'mating.blood': 'Offspring bloodline', 'mating.inb': 'Offspring inbreeding', 'mating.shared': 'Shared ancestors:',
+  'mating.noShared': 'No shared ancestors recorded. This is an outcross as far as Derby knows.',
+  'mating.record': 'Record a chick from this pair',
+  'rel.isSire': 'is the sire', 'rel.isDam': 'is the dam', 'rel.sireOf': 'sire\'s {g}', 'rel.damOf': 'dam\'s {g}',
+  'gen.1': 'parent', 'gen.2': 'grandparent', 'gen.3': 'great-grandparent', 'gen.n': '{n}× great-grandparent',
+
+  'lines.title': 'Bloodlines', 'lines.addPh': 'Add your own bloodline', 'lines.addAria': 'New bloodline name',
+  'lines.add': 'Add',
+  'lines.hint': 'These appear as suggestions when you enter a bird\'s bloodline. Tap a line to see birds carrying it.',
+  'lines.yours': 'yours', 'lines.count': (v) => `${v.n} bird${v.n === 1 ? '' : 's'}`,
+  'lines.exists': 'That line is already listed', 'lines.added': '{name} added', 'lines.remove': 'Remove {name}',
+
+  'more.title': 'More', 'install.title': 'Install app', 'install.done': '✓ Derby is installed on this device.',
+  'install.hint': 'Add Derby to your home screen so it opens like a normal app and works without signal.',
+  'install.ios': 'How to install on iPhone', 'install.btn': 'Install Derby',
+  'backup.title': 'Backup',
+  'backup.text': (v) => `${v.n} bird${v.n === 1 ? '' : 's'} saved on this phone. Records are not uploaded anywhere, so make a backup regularly. If you lose your phone or clear the browser, records without a backup are gone.`,
+  'backup.save': 'Save backup file',
+  'restore.title': 'Restore or import',
+  'restore.text': 'Open a Derby backup, or a pedigree a friend shared with you. Birds you already have are only replaced if the file\'s copy is newer.',
+  'restore.open': 'Open file…',
+  'share.title': 'Sharing birds with friends',
+  'share.text': 'Open a bird and tap <b>Share pedigree</b>. Derby sends that bird and all its recorded ancestors as a file (by Messenger, Viber, email…). Your friend opens it here under <b>Open file</b>.',
+  'danger.title': 'Danger zone', 'danger.wipe': 'Delete all birds on this phone',
+  'wipe.none': 'No birds to delete',
+  'wipe.confirm': 'Delete all {n} birds from this phone? Save a backup first if you may need them.',
+  'wipe.type': 'Type DELETE to confirm', 'wipe.cancelled': 'Nothing was deleted', 'wipe.done': 'All birds deleted',
+  'import.done': 'Imported: {a} new, {u} updated, {s} unchanged', 'import.bad': 'That file is not a Derby backup',
+  'file.saved': 'Saved {f}',
+  'about.title': 'About', 'about.app': 'App', 'about.appName': 'Derby: gamefowl pedigree', 'about.version': 'Version',
+  'about.birds': 'Birds', 'about.lang': 'Language',
+  'toast.updated': 'Derby updated to v{v}', 'toast.sample': 'Sample birds added. Delete them any time.',
+  'storage.error': 'Derby could not open its storage. Private/incognito browsing may block it.',
+
+  'banner.title': 'Install Derby', 'banner.text': 'Add it to your home screen. Works offline.',
+  'banner.btn': 'Install', 'banner.close': 'Hide install banner',
+  'sheet.ios': 'Install on iPhone / iPad', 'sheet.android': 'Install on Android',
+  'sheet.sub': 'Free. Works offline. No app store needed.', 'sheet.ok': 'Got it',
+  'ios.step1': 'Tap the <b>Share</b> button {icon} {where}.', 'ios.whereSafari': 'at the bottom of Safari',
+  'ios.whereOther': 'in the address bar (top right)',
+  'ios.step2': 'Scroll down and tap <b>Add to Home Screen</b> {icon}.',
+  'ios.step3': 'Tap <b>Add</b> (top right). Derby now opens from your home screen like any app.',
+  'ios.note': 'If you don\'t see “Add to Home Screen”, open this page in Safari and try again.',
+  'and.step1': 'Tap the browser menu {icon} (top right in Chrome).',
+  'and.step2': 'Tap <b>Install app</b> or <b>Add to Home screen</b>.',
+  'and.step3': 'Tap <b>Install</b>. Derby now opens from your home screen like any app.',
+};
+
+const tl = {
+  'nav.birds': 'Manok', 'nav.mating': 'Pares', 'nav.lines': 'Linya', 'nav.more': 'Iba pa',
+  'common.back': 'Bumalik', 'lang.label': 'Wika', 'lang.name': 'Tagalog',
+  'lang.deferred': 'Magbabago ang wika paglabas mo sa form na ito.',
+
+  'sex.cock': 'Tandang', 'sex.stag': 'Stag', 'sex.hen': 'Inahin', 'sex.pullet': 'Dumalaga',
+  'status.brood': 'Pang-breed', 'status.active': 'Panlaban', 'status.growing': 'Pinapalaki',
+  'status.sold': 'Naibenta', 'status.deceased': 'Patay na', 'status.reference': 'Para sa record lang',
+
+  'age.lt1': 'wala pang 1 buwan', 'age.y': '{n} taon', 'age.m': '{n} buwan',
+  'comp.none': 'Wala pang bloodline',
+
+  'welcome.title': 'Maligayang pagdating sa Derby',
+  'welcome.intro': 'Itala ang bloodline at pedigree ng bawat tandang, stag, inahin at dumalaga sa iyong farm.',
+  'welcome.step1': 'Unahin ang iyong mga <strong>pang-breed</strong> at ilagay ang kanilang bloodline (hal. ½ Sweater, ½ Kelso).',
+  'welcome.step2': 'Idagdag ang kanilang mga anak at piliin ang ama at ina. Ang Derby na ang magkukuwenta ng dugo.',
+  'welcome.step3': 'Gamitin ang <strong>Pares</strong> para makita ang bloodline at inbreeding bago ipares ang dalawa.',
+  'welcome.add': 'Idagdag ang unang manok', 'welcome.sample': 'Subukan gamit ang sample na manok',
+  'welcome.privacy': 'Nasa phone mo lang ang iyong records. Pumunta sa Iba pa → Backup para mag-save ng kopya o magbahagi sa mga kaibigan.',
+
+  'list.search': 'Hanapin: pangalan, band, linya, breeder…', 'list.searchAria': 'Hanapin ang manok',
+  'list.sexAria': 'Salain ayon sa kasarian', 'list.statusAria': 'Salain ayon sa status',
+  'list.all': 'Lahat', 'list.allStatuses': 'Lahat ng status',
+  'list.count': '{n} sa {total} na manok', 'list.none': 'Walang tugmang manok.', 'list.add': 'Magdagdag ng manok',
+
+  'notFound.title': 'Hindi makita', 'notFound.text': 'Hindi makita ang manok na iyan. Baka nabura na.',
+  'notFound.back': 'Bumalik sa mga manok',
+
+  'sec.bloodline': 'Bloodline', 'sec.inbreeding': 'Inbreeding', 'sec.pedigree': 'Pedigree',
+  'sec.details': 'Detalye', 'sec.notes': 'Tala', 'sec.offspring': 'Mga anak ({n})', 'sec.parents': 'Magulang',
+  'comp.auto': 'Kinuwenta mula sa ama at ina.', 'comp.manual': 'Manwal na inilagay (foundation na manok).',
+  'comp.empty': 'Wala pang record. I-edit ang manok para ilagay ang bloodline.',
+  'inb.note': 'Batay sa mga ninunong naka-record sa Derby. Ang walang record ay itinuturing na hindi kamag-anak.',
+  'inb.none': 'Walang naitala', 'inb.low': 'Mababa (parang magpinsan o mas malayo)',
+  'inb.moderate': 'Katamtaman (parang magkapatid sa ama o sa ina)', 'inb.high': 'Mataas (parang buong magkapatid o magulang × anak)',
+  'inb.veryHigh': 'Napakataas (paulit-ulit na malapitang linebreeding)',
+  'ped.parents': 'Magulang', 'ped.grand': 'Lolo at lola', 'ped.great': 'Lolo at lola sa tuhod',
+  'ped.sire': 'Ama', 'ped.dam': 'Ina', 'ped.unknown': 'Hindi alam',
+  'f.hatched': 'Napisa', 'f.wingband': 'Wingband', 'f.legband': 'Legband', 'f.color': 'Kulay ng balahibo',
+  'f.legColor': 'Kulay ng paa', 'f.comb': 'Palong', 'f.breeder': 'Breeder / pinagmulan',
+  'off.add': '+ Magdagdag ng anak', 'off.none': 'Wala pang naitalang anak.',
+  'btn.edit': 'I-edit', 'btn.testMating': 'Subukang ipares', 'btn.share': 'Ibahagi ang pedigree', 'btn.delete': 'Burahin',
+  'btn.cancel': 'Kanselahin', 'btn.save': 'I-save', 'btn.saveChanges': 'I-save',
+  'photo.of': 'Litrato ni {name}',
+  'del.confirm': 'Burahin si {name}? Hindi na ito maibabalik.',
+  'del.kids': (v) => `Mananatili ang record ng ${v.n} anak pero mawawala ang link nila sa magulang na ito.`,
+  'del.done': 'Nabura ang manok',
+
+  'form.add': 'Magdagdag ng manok', 'form.edit': 'I-edit si {name}',
+  'photo.add': 'Magdagdag ng litrato', 'photo.change': 'Palitan ang litrato', 'photo.remove': 'Alisin',
+  'photo.error': 'Hindi mabasa ang litratong iyan',
+  'f.name': 'Pangalan', 'f.namePh': 'hal. Red Sweater #12', 'f.sex': 'Kasarian', 'f.hatchDate': 'Petsa ng pisa', 'f.status': 'Status',
+  'f.sire': 'Ama (sire)', 'f.dam': 'Ina (dam)', 'f.parentUnknown': 'Hindi alam / walang record',
+  'f.parentHint': 'Wala sa listahan ang magulang? Idagdag muna ito bilang manok (gamitin ang status na “Para sa record lang” kung hindi sa iyo).',
+  'f.breederPh': 'Pangalan ng farm o breeder', 'f.notes': 'Tala', 'f.notesPh': 'Estilo ng laban, ugali, mga panalo…',
+  'comp.how': 'Paano ilalagay ang bloodline', 'comp.modeAuto': 'Mula sa magulang', 'comp.modeManual': 'Manwal',
+  'comp.manualHint': 'Para sa foundation na manok. I-type ang linya at piliin ang hati (hal. 1/2, 3/8). Ang kulang ay ituturing na Hindi alam.',
+  'comp.addLine': '+ Magdagdag ng linya', 'comp.linePh': 'Bloodline', 'comp.lineAria': 'Pangalan ng linya', 'comp.shareAria': 'Hati',
+  'comp.removeAria': 'Alisin ang linya', 'comp.pickShare': 'Hati…', 'share.full': 'Puro',
+  'comp.badRow': 'Siguraduhing bawat hilera ay may pangalan ng linya at hati.',
+  'comp.over': '{p} ang kabuuan, lampas sa 100%.', 'comp.partial': 'Kabuuan {p} · {rest} ay Hindi alam',
+  'comp.full': 'Kabuuan 100% ✓', 'comp.pickParents': 'Pumili ng ama at/o ina sa itaas para makuwenta ang bloodline.',
+  'err.identity': 'Lagyan ng pangalan, wingband o legband ang manok.',
+  'err.sex': 'Piliin ang kasarian (tandang, stag, inahin o dumalaga).',
+  'err.rows': 'Ayusin ang bloodline: bawat hilera ay kailangan ng linya at hati gaya ng 1/2.',
+  'err.over': 'Lampas sa 100% ang kabuuan ng bloodline.',
+  'err.noParents': 'Pumili ng ama o ina, o ilipat ang bloodline sa “Manwal”.',
+  'err.save': 'Hindi ma-save. Baka puno na ang storage ng phone mo.',
+  'saved.new': 'Na-save ang manok', 'saved.edit': 'Na-save ang pagbabago',
+
+  'mating.title': 'Subukang ipares',
+  'mating.intro': 'Pumili ng pares para makita ang magiging bloodline at inbreeding ng kanilang anak bago sila ipares.',
+  'mating.sire': 'Ama (tandang o stag)', 'mating.dam': 'Ina (inahin o dumalaga)', 'mating.choose': 'Pumili…',
+  'mating.need': 'Magdagdag muna ng kahit isang lalaki at isang babaeng manok.',
+  'mating.blood': 'Bloodline ng anak', 'mating.inb': 'Inbreeding ng anak', 'mating.shared': 'Magkaparehong ninuno:',
+  'mating.noShared': 'Walang naitalang magkaparehong ninuno. Outcross ito ayon sa records ng Derby.',
+  'mating.record': 'Itala ang sisiw mula sa pares na ito',
+  'rel.isSire': 'ang mismong ama', 'rel.isDam': 'ang mismong ina', 'rel.sireOf': '{g} ng ama', 'rel.damOf': '{g} ng ina',
+  'gen.1': 'magulang', 'gen.2': 'lolo/lola', 'gen.3': 'lolo/lola sa tuhod', 'gen.n': '{n}× lolo/lola sa tuhod',
+
+  'lines.title': 'Mga Linya', 'lines.addPh': 'Magdagdag ng sariling linya', 'lines.addAria': 'Pangalan ng bagong linya',
+  'lines.add': 'Idagdag',
+  'lines.hint': 'Lalabas ang mga ito bilang mungkahi kapag naglalagay ng bloodline. Pindutin ang linya para makita ang mga manok na may dugo nito.',
+  'lines.yours': 'iyo', 'lines.count': (v) => `${v.n} manok`,
+  'lines.exists': 'Nasa listahan na ang linyang iyan', 'lines.added': 'Naidagdag ang {name}', 'lines.remove': 'Alisin ang {name}',
+
+  'more.title': 'Iba pa', 'install.title': 'I-install ang app', 'install.done': '✓ Naka-install na ang Derby sa device na ito.',
+  'install.hint': 'Idagdag ang Derby sa home screen para bumukas ito na parang karaniwang app at gumana kahit walang signal.',
+  'install.ios': 'Paano i-install sa iPhone', 'install.btn': 'I-install ang Derby',
+  'backup.title': 'Backup',
+  'backup.text': (v) => `${v.n} manok ang naka-save sa phone na ito. Hindi ina-upload ang records kahit saan, kaya mag-backup palagi. Kapag nawala ang phone o na-clear ang browser, mawawala ang records na walang backup.`,
+  'backup.save': 'I-save ang backup file',
+  'restore.title': 'Ibalik o i-import',
+  'restore.text': 'Buksan ang Derby backup, o pedigree na ibinahagi ng kaibigan. Papalitan lang ang manok na mayroon ka na kung mas bago ang nasa file.',
+  'restore.open': 'Buksan ang file…',
+  'share.title': 'Pagbabahagi ng manok sa kaibigan',
+  'share.text': 'Buksan ang manok at pindutin ang <b>Ibahagi ang pedigree</b>. Ipapadala ng Derby ang manok at lahat ng naka-record nitong ninuno bilang file (sa Messenger, Viber, email…). Bubuksan ito ng kaibigan mo dito sa <b>Buksan ang file</b>.',
+  'danger.title': 'Mag-ingat', 'danger.wipe': 'Burahin lahat ng manok sa phone na ito',
+  'wipe.none': 'Walang manok na buburahin',
+  'wipe.confirm': 'Burahin lahat ng {n} manok sa phone na ito? Mag-backup muna kung kakailanganin mo pa sila.',
+  'wipe.type': 'I-type ang DELETE para kumpirmahin', 'wipe.cancelled': 'Walang nabura', 'wipe.done': 'Nabura lahat ng manok',
+  'import.done': 'Na-import: {a} bago, {u} na-update, {s} walang pagbabago', 'import.bad': 'Hindi Derby backup ang file na iyan',
+  'file.saved': 'Na-save ang {f}',
+  'about.title': 'Tungkol sa app', 'about.app': 'App', 'about.appName': 'Derby: pedigree ng manok panabong',
+  'about.version': 'Bersyon', 'about.birds': 'Manok', 'about.lang': 'Wika',
+  'toast.updated': 'Na-update ang Derby sa v{v}', 'toast.sample': 'Naidagdag ang sample na manok. Puwede silang burahin anumang oras.',
+  'storage.error': 'Hindi mabuksan ng Derby ang storage. Baka hinaharangan ito ng private/incognito browsing.',
+
+  'banner.title': 'I-install ang Derby', 'banner.text': 'Idagdag sa home screen. Gumagana kahit offline.',
+  'banner.btn': 'I-install', 'banner.close': 'Itago ang install banner',
+  'sheet.ios': 'I-install sa iPhone / iPad', 'sheet.android': 'I-install sa Android',
+  'sheet.sub': 'Libre. Gumagana offline. Hindi kailangan ng app store.', 'sheet.ok': 'Sige',
+  'ios.step1': 'Pindutin ang <b>Share</b> button {icon} {where}.', 'ios.whereSafari': 'sa ibaba ng Safari',
+  'ios.whereOther': 'sa address bar (kanang itaas)',
+  'ios.step2': 'Mag-scroll pababa at pindutin ang <b>Add to Home Screen</b> {icon}.',
+  'ios.step3': 'Pindutin ang <b>Add</b> (kanang itaas). Bubuksan na ang Derby mula sa home screen na parang karaniwang app.',
+  'ios.note': 'Kung walang “Add to Home Screen”, buksan ang page na ito sa Safari at subukan ulit.',
+  'and.step1': 'Pindutin ang menu ng browser {icon} (kanang itaas sa Chrome).',
+  'and.step2': 'Pindutin ang <b>Install app</b> o <b>Add to Home screen</b>.',
+  'and.step3': 'Pindutin ang <b>Install</b>. Bubuksan na ang Derby mula sa home screen na parang karaniwang app.',
+};
+
+export const DICTS = { en, tl };
+
+function detect() {
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (saved && DICTS[saved]) return saved;
+  } catch { /* storage blocked */ }
+  const nav = (globalThis.navigator?.languages || [globalThis.navigator?.language || 'en']).join(',').toLowerCase();
+  return /(^|,)(fil|tl)\b/.test(nav) ? 'tl' : 'en';
+}
+
+let current = globalThis.localStorage ? detect() : 'en';
+
+export const getLang = () => current;
+
+export function setLang(lang) {
+  if (!DICTS[lang]) return;
+  current = lang;
+  try { localStorage.setItem(LANG_KEY, lang); } catch { /* storage blocked */ }
+}
+
+/** Locale for dates, e.g. "fil-PH" for Tagalog. */
+export const locale = () => (current === 'tl' ? 'fil-PH' : 'en-PH');
+
+export function t(key, vars = {}) {
+  const v = DICTS[current][key] ?? en[key];
+  if (v === undefined) return key;
+  if (typeof v === 'function') return v(vars);
+  return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
