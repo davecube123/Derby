@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>Derby Swerte</title>
+  <meta name="description" content="Fight-day astrology for gamefowl: planetary hours, moon phase and favored feather colors.">
+  <meta name="theme-color" content="#121417">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../icons/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Derby Swerte">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="css/swerte.css">
+</head>
+<body>
+  <header class="appbar">
+    <a id="back" class="back" href="#/" aria-label="Back" data-i18n-aria="common.back" hidden>‹</a>
+    <img class="brand" src="../icons/logo.png" alt="">
+    <h1 id="title">Derby Swerte</h1>
+    <div id="lang" class="lang" role="group" aria-label="Language / Wika"></div>
+  </header>
+
+  <main id="view" class="view" tabindex="-1"></main>
+
+  <nav class="tabbar" aria-label="Main">
+    <a href="#/" data-nav="today">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+      <span data-i18n="nav.today">Today</span>
+    </a>
+    <a href="#/plan" data-nav="plan">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+      <span data-i18n="nav.plan">Fight day</span>
+    </a>
+    <a href="#/match" data-nav="match">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L14 10M20 20L10 10M14 10l2-6 4 4-6 2M10 10L8 4 4 8l6 2"/></svg>
+      <span data-i18n="nav.match">Match</span>
+    </a>
+    <a href="#/more" data-nav="more">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="1"/><circle cx="16" cy="12" r="1"/><circle cx="10" cy="18" r="1"/></svg>
+      <span data-i18n="nav.more">More</span>
+    </a>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="sheet" class="sheet" hidden></div>
+  <noscript><p style="padding:16px">Derby Swerte needs JavaScript turned on.</p></noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

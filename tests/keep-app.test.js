@@ -20,8 +20,11 @@ test('Derby Keep service worker caches every module it imports', () => {
   assert.ok(sw.includes('../js/genetics.js'));
 });
 
-test('Derby service worker does not delete Derby Keep caches', () => {
-  assert.match(read('sw.js'), /!k\.startsWith\('derby-keep-'\)/);
+test('Derby service worker only deletes its own versioned caches', () => {
+  const sw = read('sw.js');
+  assert.ok(sw.includes("/^derby-\\d/.test(k)"), 'filter must match only derby-<version>');
+  const own = /^derby-\d/;
+  assert.ok(own.test('derby-0.4.0') && !own.test('derby-keep-0.1.0') && !own.test('derby-swerte-0.1.0'));
 });
 
 test('Derby Keep: English and Tagalog have the same keys and placeholders', () => {

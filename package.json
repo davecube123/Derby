@@ -1,6 +1,6 @@
 {
   "name": "derby",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Bloodline and pedigree tracking for gamefowl breeders in the Philippines",
   "type": "module",

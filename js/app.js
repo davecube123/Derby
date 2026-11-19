@@ -852,6 +852,11 @@ function renderMore() {
       <a class="btn primary block" href="keep/">${t('keepApp.open')}</a>
     </section>
     <section class="card">
+      <h3>${t('swerteApp.title')}</h3>
+      <p class="muted small">${t('swerteApp.text')}</p>
+      <a class="btn block" href="swerte/">${t('swerteApp.open')}</a>
+    </section>
+    <section class="card">
       <h3>${t('backup.title')}</h3>
       <p>${t('backup.text', { n: state.birds.size })}</p>
       <button class="btn primary block" id="export">${t('backup.save')}</button>
